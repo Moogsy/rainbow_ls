@@ -1,3 +1,19 @@
+/// Rainbow-ls listing files with a lot of colours
+/// Copyright (C) 2020 - Saphielle Akiyama
+///
+/// This program is free software: you can redistribute it and/or modify
+/// it under the terms of the GNU General Public License as published by
+/// the Free Software Foundation, either version 3 of the License, or
+/// (at your option) any later version.
+///
+/// This program is distributed in the hope that it will be useful,
+/// but WITHOUT ANY WARRANTY; without even the implied warranty of
+/// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+/// GNU General Public License for more details.
+///
+/// You should have received a copy of the GNU General Public License
+/// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 use std::env;
 use std::path;
 use std::fs;
@@ -327,15 +343,19 @@ fn main() {
 
     dir_entries.sort();
 
-    if let Some((term_width, _)) = term_size::dimensions() {
-        let (total_length, longest_name_length): (usize, usize) = get_metrics(&dir_entries);
-
-        if total_length <= term_width {
-            display_one_line(&dir_entries);
+    let term_width: usize = {
+        if let Some(t_size) = term_size::dimensions() {
+            t_size.0
         } else {
-            display_multiline(&mut dir_entries, longest_name_length, term_width);
+            panic!("Failed to get term's size")
         }
+    };
+
+    let (total_length, longest_name_length): (usize, usize) = get_metrics(&dir_entries);
+
+    if total_length <= term_width {
+        display_one_line(&dir_entries);
     } else {
-        panic!("Failed to get term size")
+        display_multiline(&mut dir_entries, longest_name_length, term_width);
     }
 }
