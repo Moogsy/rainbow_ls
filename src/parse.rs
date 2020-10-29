@@ -16,6 +16,7 @@
 
 use std::env;
 
+#[derive(Debug)]
 struct Config {
     pub file: Vec<u8>,
     pub dir: Vec<u8>,
@@ -34,24 +35,35 @@ impl Config {
     }
 }
 
-fn parse_args() {
+pub fn parse_args() {
     let mut config: Config = Config::new();
 
     let mut args = env::args();
 
-    while let Some(arg) = args.next() {
-        match arg.as_str() {
-            "--file" => {
-                if let Some(param) = args.next() {
-                    for letter in param.chars() {
-                        config.file.push(letter as u8);
-                    }
+    while let Some(left_arg) = args.next() {
+        if !left_arg.starts_with("--") {
+            continue;
+        }
+        if let Some(right_arg) = args.next() {
+            let curr_config: &mut Vec<u8> = {
+                match left_arg.as_str() {
+                    "--file" => &mut config.file,
+                    "--dir" => &mut config.dir,
+                    "--symlink" => &mut config.symlink,
+                    "--unknown" => &mut config.unknown,
+                    _ => panic!("Unrecognized argument"),
                 }
-            },
-            "--dir" => (),
-            "--symlink" => (),
-            "--unknown" => (),
-            _ => ()
+            };
+            for letter in right_arg.chars() {
+                if let Some(digit) = letter.to_digit(10) {
+                    curr_config.push(digit as u8);
+                } else {
+                    panic!("Right argument must be a chain of digits")
+                }
+            }
+        } else {
+            panic!("Argument left empty");
         }
     }
+    println!("{:?}", config);
 }

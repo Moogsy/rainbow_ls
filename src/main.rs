@@ -37,11 +37,8 @@ fn get_metrics(dir_entries: &Vec<filetype::Entry>) -> (usize, usize) {
 
 
 fn main() {
-    let dir: path::PathBuf = if let Some(path_string) = env::args().nth(1) {
-        path::PathBuf::from(path_string)
-    } else {
-        env::current_dir().expect("Failed to get current exec path")
-    };
+    
+    let dir = env::current_dir().expect("frick");
 
     let mut dir_entries: Vec<filetype::Entry> = dir
         .read_dir()
@@ -67,4 +64,7 @@ fn main() {
     } else {
         display::multiline(&mut dir_entries, longest_name_length, term_width);
     }
+
+    parse::parse_args();
+    
 }
