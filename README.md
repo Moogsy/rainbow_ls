@@ -1,4 +1,4 @@
-# RainbowLs
+# Rainbow-ls
 ls, but with more colors
 
 TODO:
@@ -7,7 +7,13 @@ TODO:
   - Command line args 
   - Option to change the highlighting that gets used (bold/invert/...) via command line args
   - Same for the colour modifier
+  - Screenshots for symlinks and unknown ?
+  - Add some kind of way to highlight executables
 
 Some screenshots before colors are cool:
-https://raw.githubusercontent.com/Saphielle-Akiyama/Rainbow-ls/master/screenshots/filetypes.png
-https://raw.githubusercontent.com/Saphielle-Akiyama/Rainbow-ls/master/screenshots/file_extensions.png
+
+![Files and folders]
+(https://github.com/Saphielle-Akiyama/Rainbow-ls/blob/master/screenshots/filetypes.png)
+
+![A lot of file with different extensions]
+(https://github.com/Saphielle-Akiyama/Rainbow-ls/blob/master/screenshots/file_extensions.png)
