@@ -1,19 +1,3 @@
-/// Rainbow-ls listing files with a lot of colours
-/// Copyright (C) 2020 - Saphielle Akiyama
-///
-/// This program is free software: you can redistribute it and/or modify
-/// it under the terms of the GNU General Public License as published by
-/// the Free Software Foundation, either version 3 of the License, or
-/// (at your option) any later version.
-///
-/// This program is distributed in the hope that it will be useful,
-/// but WITHOUT ANY WARRANTY; without even the implied warranty of
-/// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-/// GNU General Public License for more details.
-///
-/// You should have received a copy of the GNU General Public License
-/// along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 use std::env;
 use std::path;
 use std::fs;
@@ -23,11 +7,16 @@ use std::ffi;
 const SEP: &str = "  ";
 const SEP_LEN: usize = SEP.len();
 
-// Mess around with those if you want
-const SYMLINK_COLOR: (u8, u8, u8) = (53, 204, 53);
-const UNKNOWN_COLOR: (u8, u8, u8) = (255, 0, 0);
-const MIN_COLOR_SUM: u32 = 500;
+// should be lower than 512
+const MIN_COLOR_SUM: u32 = 512;
 
+// Can this be moved into some kind of python-like enums ?
+// Escape codes that will be used,
+// Refer to Entry::format_filename for their meaning
+const FILE_FORMATTING: [u8; 1] = [1];
+const DIR_FORMATTING: [u8; 2] = [1, 7];
+const SYMLINK_FORMATTING: [u8; 2] = [1, 3];
+const UNKNOWN_FORMATTING: [u8; 2] = [1, 4];
 
 // Used to be in it's own mod, but not feeling like zipping it
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq)]
@@ -46,23 +35,28 @@ pub struct Entry {
     pub file_name: ffi::OsString,
 }
 
+// Worth rewriting with generics?
+fn divmod(x: u32, y: u32) -> (u32, u32) {
+    (x / y, x % y)
+}
+
 impl Entry {
     /// Determines whether the entry is a file, dir, symlink or unknown
-    fn determine_type_from_entry(entry: &fs::DirEntry) -> EntryType {
-        match entry.metadata() {
-            Ok(metadata) => {
-                if metadata.is_file() {
-                    EntryType::File
-                } else if metadata.is_dir() {
-                    EntryType::Directory
-                } else {
-                    EntryType::Symlink
-                }
-            },
-            Err(_) => EntryType::Unknown,
+    fn determine_type_from_entry(entry: &fs::DirEntry) -> EntryType { 
+        if let Ok(metadata) = entry.metadata() {
+            if metadata.is_file() {
+                EntryType::File
+            } else if metadata.is_dir() {
+                EntryType::Directory
+            } else {
+                EntryType::Symlink
+            }
+        } else {
+            EntryType::Unknown
         }
     }
     
+    /// Sort a given vector of indexes in order to only have the indexes of the darkest colors
     fn sort_lowest_colors_indexes(lowest_colors_indexes: &mut Vec<usize>, 
                                   max_color_index: usize, 
                                   colors: &[u32; 3]) {
@@ -72,112 +66,123 @@ impl Entry {
             lowest_colors_indexes.reverse();
         }
     }
+
+    /// A lower level function that mutates the array of colors to brighten it
+    fn pad_given_lowest_colors(lowest_colors_indexes: &mut Vec<usize>, 
+                               colors: &mut [u32; 3], 
+                               color_sum: u32) -> (u8, u8, u8) {
+        
+        let mut color_sum: u32 = color_sum.clone();
+    
+        for color_index in lowest_colors_indexes.iter() {
+            let pot_new_color: u32 = colors[*color_index] + (MIN_COLOR_SUM - color_sum);
+            if pot_new_color < 255 {
+                colors[*color_index] = pot_new_color;
+                let [r, g, b]: [u32; 3] = *colors;
+                return (r as u8, g as u8, b as u8)
+            } else {
+                colors[*color_index] = u8::MAX as u32;
+                color_sum = colors.iter().sum();
+            }
+        }
+        let [r, g, b]: [u32; 3] = *colors;
+        (r as u8, g as u8, b as u8)
+    }
+
+    /// Takes a tuple of rgb + their sum that was already calculated earlier
+    /// And then returns a "pastel" version of it
+    fn pad_lowest_colors((red, green, blue): (u32, u32, u32), color_sum: u32) -> (u8, u8, u8) {
+        let mut colors: [u32; 3] = [red, green, blue];
+        let max_color_index: usize = colors
+            .iter()
+            .enumerate()
+            .max_by_key(|&(_, item)| item)
+            .unwrap().0; // we know that it isn't empty, unwrap safely
+
+        let mut lowest_colors_indexes: Vec<usize> = vec![0, 1, 2];
+        Self::sort_lowest_colors_indexes(&mut lowest_colors_indexes, max_color_index, &colors);
+        Self::pad_given_lowest_colors(&mut lowest_colors_indexes, &mut colors, color_sum)
+    }
    
     /// Helper function that turns a string into a rgb tuple
     fn determine_color_from_string(string: &mut String) -> (u8, u8, u8) {
+        let mut prod: u32 = 2;
         unsafe {
-            let mut sum: u32 = 2;
             for n in string.as_mut_vec().iter() {
-                sum += *n as u32;
+                prod = prod.wrapping_mul(*n as u32);
             }
-            let (green, blue): (u32, u32) = (sum / 255, sum % 255); // I miss divmod
-            let (mut red, green): (u32, u32) = (green / 255, green % 255);
-            red %= 255;
+        }
+        let (green, blue): (u32, u32) = divmod(prod, 255);
+        let (mut red, green): (u32, u32) = divmod(green, 255);
+        red %= 255;
+        let color_sum: u32 = red + green + blue;
 
-            // big oh no moment
-            let mut color_sum = red + green + blue;
+        if color_sum > MIN_COLOR_SUM {
+            (red as u8, green as u8, blue as u8)
+        } else {
+            Self::pad_lowest_colors((red, green, blue), color_sum)
+       }
+    }
 
-            if color_sum < MIN_COLOR_SUM {
-                let mut colors: [u32; 3] = [red, green, blue];
+    /// Gets an fs::Direntry's filename, return "?" if it errors out or idk
+    fn entry_to_string(entry: &fs::DirEntry) -> String {
+        let os_filename = entry.file_name();
+        let filename: String = os_filename
+            .to_str()
+            .unwrap_or("?")
+            .to_string();
 
-                let max_color_index: usize = colors
-                    .iter()
-                    .enumerate()
-                    .max_by_key(|&(_, item)| item)
-                    .unwrap().0; // we know that it isn't empty, unwrap safely
-
-                let mut lowest_colors_indexes: Vec<usize> = vec![0, 1, 2];
-                Entry::sort_lowest_colors_indexes(&mut lowest_colors_indexes, max_color_index, &colors);
-
-                for color_index in lowest_colors_indexes.iter() {
-                    let pot_new_color = colors[*color_index] + (MIN_COLOR_SUM - color_sum);
-                    if pot_new_color < 255 {
-                        colors[*color_index] = pot_new_color;
-                        return (colors[0] as u8, colors[1] as u8, colors[2] as u8);
-
-                    } else {
-                        colors[*color_index] = u8::MAX as u32;
-                        color_sum = colors.iter().sum();
-                    }
-                }
-                return (colors[0] as u8, colors[1] as u8, colors[2] as u8);
-                
-            } else {
-                (red as u8, green as u8, blue as u8)
-            }
+        filename
+    }
+    
+    /// A higher level func that uses the filename as a whole to get a color
+    fn entry_to_color(entry: &fs::DirEntry) -> (u8, u8, u8) {
+        let mut filename: String = Self::entry_to_string(entry);
+        Self::determine_color_from_string(&mut filename)
+    }
+    
+    /// Helper function that determines a color from a file extension
+    /// Or uses the filename as a whole if it failed to parse the ext
+    fn determine_color_from_ext(ext: &ffi::OsStr, entry: &fs::DirEntry) -> (u8, u8, u8) {
+        if let Some(ext) = ext.to_str() {
+            Self::determine_color_from_string(&mut String::from(ext))
+        } else {
+            Self::entry_to_color(entry)
         }
     }
     
-    /// Eh
+    /// Determines a color using the file extension or the filename as a whole 
+    /// if it couldn't find an extension
     fn extension_to_color(entry: &fs::DirEntry) -> (u8, u8, u8) {
-        match entry.path().extension() {
-            None => {
-                let mut fn_str: String = entry.file_name().to_string_lossy().to_string();
-                Entry::determine_color_from_string(&mut fn_str)
-            },
-            Some(ext) => {
-                match ext.to_str() {
-                    None => UNKNOWN_COLOR,
-                    Some(ext_str) => {
-                        let mut string: String = String::from(ext_str);
-                        Entry::determine_color_from_string(&mut string)
-                    }
-                }
-            }
+        if let Some(ext) = entry.path().extension() {
+            Self::determine_color_from_ext(ext, entry)
+        } else {
+            Self::entry_to_color(entry)
         }
     }
 
     /// Determines a color depending on extension
-    /// Returns pink if no extension, red if it contains invalid utf8 chars 
     fn determine_color_from_entry(entry: &fs::DirEntry, type_: &EntryType) -> (u8, u8, u8) {
-        match type_ {
-            &EntryType::Directory => {
-                let mut dn_str: String = entry.file_name().to_string_lossy().to_string();
-                Entry::determine_color_from_string(&mut dn_str)
-
-            },
-            &EntryType::Symlink => SYMLINK_COLOR,
-            &EntryType::Unknown => UNKNOWN_COLOR,
-            &EntryType::File => {
-                Entry::extension_to_color(entry)
-           }
+        if type_ == &EntryType::File {
+            Self::extension_to_color(entry)
+        } else {
+            Self::entry_to_color(entry)
         }
     }
 
     /// New instance of file from fs::Direntry
     pub fn from_read_dir(entry: fs::DirEntry) -> Entry {
         let type_: EntryType = Entry::determine_type_from_entry(&entry);
-        let file_name = entry.file_name();
-        Entry {
+        let file_name: ffi::OsString = entry.file_name();
+        Self {
             file_name,
-            color: Entry::determine_color_from_entry(&entry, &type_),
+            color: Self::determine_color_from_entry(&entry, &type_),
             type_,
             entry,
         }
     }
     
-    /// Pads the current filename for alignment
-    pub fn pad_filename(&mut self, longest_name: usize) -> &mut Entry {
-        let filename_len: usize = self.file_name.len();
-        let diff: usize = longest_name.max(filename_len) - filename_len;
-
-        for _ in 0..diff {
-            self.file_name.push(" ");
-        }
-        self // don't question this, it works
-    }
-
-    /// formats a text, ig, can defo be optimize to reduce the amount of format! calls
+    /// formats a text
     /// 0 - Normal Style
     /// 1 - Bold
     /// 2 - Dim
@@ -186,37 +191,62 @@ impl Entry {
     /// 5 - Blinking
     /// 7 - Reverse
     /// 8 - Invisible
-    /// TODO: Handle the padding so the formatting comes first
-    fn format_filename(txt: String, codes: Vec<u8>) -> String {
-        let mut txt = txt.clone().to_string();
-        for code in codes {
-            txt = format!("\x1b[{}m{}\x1b[0m", code, txt);
+    fn format_filename(escape_seq: &mut String, codes: &[u8]) {
+        for code in codes { // the joys of having mutable string
+            escape_seq.push_str(format!("\x1b[{}m", code).as_str());
         }
-        txt
+    }
+
+    fn pad_filename(&self, file_name: &str, escape_seq: &mut String, longest_name_length: usize) {
+        let filename_len: usize = file_name.len();
+        let diff: usize = longest_name_length.max(filename_len) - filename_len;
+        for _ in 0..diff {
+            escape_seq.push_str(" ");
+        }
     }
 
     /// Returns the filename with it's proper ansi seq
-    pub fn get_coloured_file_name(&self) -> String {
-        let str_filename: String = self.file_name
-            .to_str()
-            .unwrap_or("?")
-            .to_string();
-
+    /// Pass 0 for no padding
+    pub fn get_formatted_filename(&self, longest_name_length: usize) -> String {
         let (r, g, b): &(u8, u8, u8) = &self.color;
-        let coloured: String = format!(
-            "\x1B[38;2;{};{};{}m{}\x1B[0;00m", 
-            r, g, b, str_filename);
+        let mut escape_seq: String = format!("\x1B[38;2;{};{};{}m", r, g, b);
+        let escape_ptr: &mut String = &mut escape_seq;
 
-        match self.type_ {
-            EntryType::File => Entry::format_filename(coloured, vec![1]),
-            EntryType::Directory => Entry::format_filename(coloured, vec![1, 7]),
-            EntryType::Symlink => Entry::format_filename(coloured, vec![3, 4]),
-            EntryType::Unknown => Entry::format_filename(coloured, vec![7, 4, 1]),
+        let _ = match self.type_ {
+            EntryType::File => Self::format_filename(escape_ptr, &FILE_FORMATTING),
+            EntryType::Directory => Self::format_filename(escape_ptr, &DIR_FORMATTING),
+            EntryType::Symlink => Self::format_filename(escape_ptr, &SYMLINK_FORMATTING),
+            EntryType::Unknown => Self::format_filename(escape_ptr, &UNKNOWN_FORMATTING),
+        };
+
+        let file_name: &str = self.file_name
+            .to_str()
+            .unwrap_or("?");
+
+        escape_seq.push_str(file_name);
+        escape_seq.push_str("\x1B[0;00m");
+
+        self.pad_filename(file_name, &mut escape_seq, longest_name_length);
+
+        escape_seq
+    }
+
+    fn prep_cmp(&self) -> (&EntryType, String, path::PathBuf) {
+        let path: path::PathBuf = self.entry.path();
+        let default: String = String::from("?");
+
+        if let Some(ext) = path.extension() {
+            if let Some(ext_str) = ext.to_str() {
+                (&self.type_, String::from(ext_str), path)
+            } else {
+                (&self.type_, default, path)
+            }
+
+        } else {
+            (&self.type_, default, path)
         }
     }
 }
-            
-
 
 impl Eq for Entry {} // empty but needed for some reson
 
@@ -228,23 +258,7 @@ impl PartialEq for Entry {
 
 impl Ord for Entry {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
-
-        let left_path: &path::PathBuf = &self.entry.path();
-        let left_ext: String = {
-            match left_path.extension() {
-                None => String::from(""),
-                Some(ext) => ext.to_str().unwrap_or("").to_string(),
-            }
-        };
-
-       let right_path: &path::PathBuf = &other.entry.path();
-       let right_ext: String = {
-           match right_path.extension() {
-               None => String::from(""),
-               Some(ext) => ext.to_str().unwrap_or("").to_string(),
-           }
-       };
-       (&self.type_, left_ext, left_path).cmp(&(&other.type_, right_ext, right_path))
+        self.prep_cmp().cmp(&other.prep_cmp())
     }
 }
 
@@ -254,12 +268,11 @@ impl PartialOrd for Entry {
     }
 }
 
-
 fn get_metrics(dir_entries: &Vec<Entry>) -> (usize, usize) {
     let mut total_length: usize = SEP_LEN * (dir_entries.len() - 1);
     let mut longest_name: usize = 0;
     for entry in dir_entries.iter() {
-        let fn_len = entry.file_name.len();
+        let fn_len: usize = entry.file_name.len();
         total_length += fn_len;
         if longest_name < fn_len {
             longest_name = fn_len;
@@ -267,28 +280,26 @@ fn get_metrics(dir_entries: &Vec<Entry>) -> (usize, usize) {
     }
     (total_length, longest_name)
 }
-/// Those should be in their own module but idk how to circular import
+
+/// Displays all entries on a single line
 fn display_one_line(dir_entries: &Vec<Entry>) {
     let mapped: Vec<String> = dir_entries
         .iter()
-        .map(Entry::get_coloured_file_name)
+        .map(|entry| entry.get_formatted_filename(0))
         .collect();
 
     println!("{}", mapped.join(SEP));
 }
 
-fn display_multiline(dir_entries: &mut Vec<Entry>, longest_name: usize, term_width: usize) {
-    let dir_entries: Vec<&mut Entry> = dir_entries
-        .iter_mut()
-        .map(|entry| entry.pad_filename(longest_name))
-        .collect();
-        
-    let per_line: usize = term_width / (longest_name + SEP_LEN);
+/// Displays all entries in some kind of rows and rolumns
+/// TODO: rotate it 90°
+fn display_multiline(dir_entries: &mut Vec<Entry>, longest_name_length: usize, term_width: usize) {
+    let per_line: usize = term_width / (longest_name_length + SEP_LEN);
 
     let mut temp: Vec<String> = Vec::new();
 
     for entry in dir_entries {
-        temp.push(entry.get_coloured_file_name());
+        temp.push(entry.get_formatted_filename(longest_name_length));
 
         if temp.len() == per_line {
             print!("{}\n", temp.join(SEP));
@@ -304,7 +315,6 @@ fn main() {
     let curr_exec_path: path::PathBuf = env::current_dir()
         .expect("Failed to get current exec path");
 
-    // good meme
     let mut dir_entries: Vec<Entry> = curr_exec_path
         .read_dir()
         .expect("Failed to read dir")
@@ -319,12 +329,11 @@ fn main() {
         None => panic!("Failed to get term size")
     };
 
-    let (total_length, longest_name): (usize, usize) = get_metrics(&dir_entries);
+    let (total_length, longest_name_length): (usize, usize) = get_metrics(&dir_entries);
 
     if total_length <= term_width {
         display_one_line(&dir_entries);
     } else {
-        display_multiline(&mut dir_entries, longest_name, term_width);
-        // Should be rotate it so entries are sorted in columns instead of lines
+        display_multiline(&mut dir_entries, longest_name_length, term_width);
     }
 }
