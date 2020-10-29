@@ -9,5 +9,5 @@ TODO:
   - Same for the colour modifier
 
 Some screenshots before colors are cool:
-https://github.com/Saphielle-Akiyama/Rainbow-ls/blob/master/screenshots/filetypes.png
-https://github.com/Saphielle-Akiyama/Rainbow-ls/blob/master/screenshots/file_extensions.png
+https://raw.githubusercontent.com/Saphielle-Akiyama/Rainbow-ls/master/screenshots/filetypes.png
+https://raw.githubusercontent.com/Saphielle-Akiyama/Rainbow-ls/master/screenshots/file_extensions.png
