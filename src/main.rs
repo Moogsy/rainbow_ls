@@ -42,7 +42,7 @@ fn divmod(x: u32, y: u32) -> (u32, u32) {
 
 impl Entry {
     /// Determines whether the entry is a file, dir, symlink or unknown
-    fn determine_type_from_entry(entry: &fs::DirEntry) -> EntryType { 
+    fn determine_type_from_entry(entry: &fs::DirEntry) -> EntryType {
         if let Ok(metadata) = entry.metadata() {
             if metadata.is_file() {
                 EntryType::File
@@ -55,10 +55,10 @@ impl Entry {
             EntryType::Unknown
         }
     }
-    
+
     /// Sort a given vector of indexes in order to only have the indexes of the darkest colors
-    fn sort_lowest_colors_indexes(lowest_colors_indexes: &mut Vec<usize>, 
-                                  max_color_index: usize, 
+    fn sort_lowest_colors_indexes(lowest_colors_indexes: &mut Vec<usize>,
+                                  max_color_index: usize,
                                   colors: &[u32; 3]) {
 
         lowest_colors_indexes.remove(max_color_index);
@@ -68,12 +68,12 @@ impl Entry {
     }
 
     /// A lower level function that mutates the array of colors to brighten it
-    fn pad_given_lowest_colors(lowest_colors_indexes: &mut Vec<usize>, 
-                               colors: &mut [u32; 3], 
+    fn pad_given_lowest_colors(lowest_colors_indexes: &mut Vec<usize>,
+                               colors: &mut [u32; 3],
                                color_sum: u32) -> (u8, u8, u8) {
-        
+
         let mut color_sum: u32 = color_sum.clone();
-    
+
         for color_index in lowest_colors_indexes.iter() {
             let pot_new_color: u32 = colors[*color_index] + (MIN_COLOR_SUM - color_sum);
             if pot_new_color < 255 {
@@ -103,7 +103,7 @@ impl Entry {
         Self::sort_lowest_colors_indexes(&mut lowest_colors_indexes, max_color_index, &colors);
         Self::pad_given_lowest_colors(&mut lowest_colors_indexes, &mut colors, color_sum)
     }
-   
+
     /// Helper function that turns a string into a rgb tuple
     fn determine_color_from_string(string: &mut String) -> (u8, u8, u8) {
         let mut prod: u32 = 2;
@@ -134,13 +134,13 @@ impl Entry {
 
         filename
     }
-    
+
     /// A higher level func that uses the filename as a whole to get a color
     fn entry_to_color(entry: &fs::DirEntry) -> (u8, u8, u8) {
         let mut filename: String = Self::entry_to_string(entry);
         Self::determine_color_from_string(&mut filename)
     }
-    
+
     /// Helper function that determines a color from a file extension
     /// Or uses the filename as a whole if it failed to parse the ext
     fn determine_color_from_ext(ext: &ffi::OsStr, entry: &fs::DirEntry) -> (u8, u8, u8) {
@@ -150,8 +150,8 @@ impl Entry {
             Self::entry_to_color(entry)
         }
     }
-    
-    /// Determines a color using the file extension or the filename as a whole 
+
+    /// Determines a color using the file extension or the filename as a whole
     /// if it couldn't find an extension
     fn extension_to_color(entry: &fs::DirEntry) -> (u8, u8, u8) {
         if let Some(ext) = entry.path().extension() {
@@ -181,7 +181,7 @@ impl Entry {
             entry,
         }
     }
-    
+
     /// formats a text
     /// 0 - Normal Style
     /// 1 - Bold
@@ -312,10 +312,13 @@ fn display_multiline(dir_entries: &mut Vec<Entry>, longest_name_length: usize, t
 }
 
 fn main() {
-    let curr_exec_path: path::PathBuf = env::current_dir()
-        .expect("Failed to get current exec path");
+    let dir: path::PathBuf = if let Some(path_string) = env::args().nth(1) {
+        path::PathBuf::from(path_string)
+    } else {
+        env::current_dir().expect("Failed to get current exec path")
+    };
 
-    let mut dir_entries: Vec<Entry> = curr_exec_path
+    let mut dir_entries: Vec<Entry> = dir
         .read_dir()
         .expect("Failed to read dir")
         .filter_map(Result::ok)
@@ -323,17 +326,16 @@ fn main() {
         .collect();
 
     dir_entries.sort();
-    
-    let term_width: usize = match term_size::dimensions() {
-        Some((w, _)) => w,
-        None => panic!("Failed to get term size")
-    };
 
-    let (total_length, longest_name_length): (usize, usize) = get_metrics(&dir_entries);
+    if let Some((term_width, _)) = term_size::dimensions() {
+        let (total_length, longest_name_length): (usize, usize) = get_metrics(&dir_entries);
 
-    if total_length <= term_width {
-        display_one_line(&dir_entries);
+        if total_length <= term_width {
+            display_one_line(&dir_entries);
+        } else {
+            display_multiline(&mut dir_entries, longest_name_length, term_width);
+        }
     } else {
-        display_multiline(&mut dir_entries, longest_name_length, term_width);
+        panic!("Failed to get term size")
     }
 }
