@@ -12,8 +12,6 @@ TODO:
 
 Some screenshots before colors are cool:
 
-![Files and folders]
-(https://github.com/Saphielle-Akiyama/Rainbow-ls/blob/master/screenshots/filetypes.png)
+![Files and folders](https://github.com/Saphielle-Akiyama/Rainbow-ls/blob/master/screenshots/filetypes.png)
 
-![A lot of file with different extensions]
-(https://github.com/Saphielle-Akiyama/Rainbow-ls/blob/master/screenshots/file_extensions.png)
+![A lot of file with different extensions](https://github.com/Saphielle-Akiyama/Rainbow-ls/blob/master/screenshots/file_extensions.png)
