@@ -36,6 +36,7 @@ fn get_metrics(dir_entries: &Vec<filetype::Entry>) -> (usize, usize) {
 
 
 fn main() {
+    let config: parse::Config = parse::parse_args();
     
     let dir = env::current_dir().expect("frick");
 
@@ -64,6 +65,5 @@ fn main() {
         display::multiline(&mut dir_entries, longest_name_length, term_width);
     }
 
-    parse::parse_args();
     
 }

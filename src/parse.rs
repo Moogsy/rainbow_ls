@@ -16,6 +16,7 @@
 
 use std::env;
 use std::process;
+use std::path;
 
 const VALID_ESCAPE_DIGITS: [u8; 8] = [0, 1, 2, 3, 4, 5, 7, 8];
 const HELP_TXT: &str = r#"
@@ -64,6 +65,7 @@ Example:
 
 #[derive(Debug)]
 pub struct Config {
+    pub directories: Vec<path::PathBuf>,
     pub file: Vec<u8>,
     pub dir: Vec<u8>,
     pub symlink: Vec<u8>,
@@ -74,6 +76,8 @@ pub struct Config {
 impl Config {
     pub fn new() -> Self {
         Self {
+            // Curr dir should be passed in argv
+            directories: Vec::new(), 
             file: vec![1],
             dir: vec![1, 7],
             symlink: vec![1, 3],
@@ -83,57 +87,100 @@ impl Config {
     }
 }
 
-fn parse_colour_arg(curr_config: &mut Vec<u8>, right_arg: String) {
+/// Tries to parse the escape digits
+/// Panics if it fails to do so or if an invalid digit was passed
+fn parse_formatting_arg(curr_config: &mut Vec<u8>, right_arg: String) {
     curr_config.clear(); // clearing defaults
     for letter in right_arg.chars() {
-        if let Some(digit) = letter.to_digit(10) {
-            let digit = digit as u8;
-            if VALID_ESCAPE_DIGITS.contains(&digit) {
-                curr_config.push(digit);
-            } else {
-                panic!("Digit not in {:?}", VALID_ESCAPE_DIGITS)
-            }
+        // .expect doesn't support format string, .unwrap_or_else avoids the overhead of formatting it
+        // even in case of ok.
+        let digit: u8 = letter
+            .to_digit(10)
+            .unwrap_or_else(|| panic!("Failed to convert {} to a number", letter))
+            as u8;
+
+        if VALID_ESCAPE_DIGITS.contains(&digit) {
+            curr_config.push(digit);
         } else {
-            panic!("Right argument must be a chain of digits")
+            panic!("Digit not in {:?}", VALID_ESCAPE_DIGITS)
         }
     }
 }
 
+/// Tries to parse the arg passed as the minimal sum of r,g,b.
+/// Panics if the the arg is negative or higher than the maximal sum
 fn parse_min_sum(curr_config: &mut u32, right_arg: String) {
-    let right: u32 = right_arg.trim().parse().expect("Sum must be an int");
-    if 0 < right || right > 765 {
-        panic!("Expected sum to be an int between 0 and 765, got {}", right);
+    let min_sum: u32 = right_arg
+        .trim()
+        .parse()
+        .expect("Sum must be a positive int");
+
+    if min_sum > 765 {
+        panic!("Expected sum to be an int between 0 and 765, got {}", min_sum);
     } else {
-        *curr_config = right;
+        *curr_config = min_sum;
     }
 }
 
+/// Gets all remaining args after a "-- " to treat them as file paths
+fn parse_double_dash(arg_iter: &mut env::Args, untreated_args: &mut Vec<String>) {
+    while let Some(potential_fp) = arg_iter.next() {
+        untreated_args.push(potential_fp);
+    }
+}
+
+fn parse_untreated_args(curr_config: &mut Vec<path::PathBuf>, untreated_args: &mut Vec<String>) {
+    for arg in untreated_args.iter() {
+        let pathbuf: path::PathBuf = path::PathBuf::from(arg);
+        
+        // Checking if we can read the dir first
+        if pathbuf.read_dir().is_ok() {
+            curr_config.push(pathbuf);  
+        }
+
+    }
+}
 pub fn parse_args() -> Config {
     let mut config: Config = Config::new();
 
     let mut args: env::Args = env::args();
 
+    // We'll take care of them later, potential file paths
+    let mut untreated_args: Vec<String> = Vec::new();
+
     while let Some(left_arg) = args.next() {
-        if !left_arg.starts_with("--") {
+        
+        if !left_arg.starts_with("--") { // wiki said to not rely on arg order 
+            untreated_args.push(left_arg);
             continue;
-        } else if left_arg == "--help" {
+        }
+
+        if left_arg == "--help" {
             println!("{}", HELP_TXT);  // hardcoded help command is big hahayes moment
             process::exit(0);
         }
 
         if let Some(right_arg) = args.next() {
             match left_arg.as_str() {
-                "--file" => parse_colour_arg(&mut config.file, right_arg),
-                "--dir" => parse_colour_arg(&mut config.dir, right_arg),
-                "--symlink" => parse_colour_arg(&mut config.symlink, right_arg),
-                "--unknown" => parse_colour_arg(&mut config.unknown, right_arg),
+                "--file" => parse_formatting_arg(&mut config.file, right_arg),
+                "--dir" => parse_formatting_arg(&mut config.dir, right_arg),
+                "--symlink" => parse_formatting_arg(&mut config.symlink, right_arg),
+                "--unknown" => parse_formatting_arg(&mut config.unknown, right_arg),
                 "--sum" => parse_min_sum(&mut config.min_colour_sum, right_arg),
-                _ => panic!("Unrecognized argument"),
+                "--" => { // args after a double dash should be treated as a path
+                    parse_double_dash(&mut args, &mut untreated_args);
+                    break;
+                },
+                unknown_arg => panic!("Unrecognized argument: {}", unknown_arg),
             }
+
         } else {
-            panic!("Argument not filled")
+            panic!("Argument {} not filled", left_arg);
         }
     }
+
+    parse_untreated_args(&mut config.directories, &mut untreated_args);
+
 
     println!("{:?}", config);
 

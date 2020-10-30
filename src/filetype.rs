@@ -190,7 +190,7 @@ impl Entry {
     /// 7 - Reverse
     /// 8 - Invisible
     fn format_filename(escape_seq: &mut String, codes: &[u8]) {
-        for code in codes { // the joys of having mutable string
+        for code in codes { 
             escape_seq.push_str(format!("\x1b[{}m", code).as_str());
         }
     }
