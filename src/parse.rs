@@ -65,7 +65,8 @@ Example:
 
 #[derive(Debug)]
 pub struct Config {
-    pub directories: Vec<path::PathBuf>,
+    pub ok_directories: Vec<path::PathBuf>,
+    pub err_directories: Vec<path::PathBuf>,
     pub file: Vec<u8>,
     pub dir: Vec<u8>,
     pub symlink: Vec<u8>,
@@ -77,7 +78,8 @@ impl Config {
     pub fn new() -> Self {
         Self {
             // Curr dir should be passed in argv
-            directories: Vec::new(), 
+            ok_directories: Vec::new(), 
+            err_directories: Vec::new(),
             file: vec![1],
             dir: vec![1, 7],
             symlink: vec![1, 3],
@@ -129,15 +131,24 @@ fn parse_double_dash(arg_iter: &mut env::Args, untreated_args: &mut Vec<String>)
     }
 }
 
-fn parse_untreated_args(curr_config: &mut Vec<path::PathBuf>, untreated_args: &mut Vec<String>) {
+fn parse_untreated_args(config: &mut Config, untreated_args: &mut Vec<String>) {
     for arg in untreated_args.iter() {
         let pathbuf: path::PathBuf = path::PathBuf::from(arg);
-        
-        // Checking if we can read the dir first
-        if pathbuf.read_dir().is_ok() {
-            curr_config.push(pathbuf);  
-        }
 
+        if pathbuf.is_dir() { // the executable is automatically passed in argv
+            if pathbuf.read_dir().is_ok() {
+                config.ok_directories.push(pathbuf);
+            } else {
+                config.err_directories.push(pathbuf);
+            }
+        }
+    }
+    // no path args were passed
+    if config.ok_directories.is_empty() && config.err_directories.is_empty() {
+        let curr_dir: path::PathBuf = env::current_dir()
+            .expect("No path args were passed and couldn't read / get current directory");
+        
+        config.ok_directories.push(curr_dir);
     }
 }
 pub fn parse_args() -> Config {
@@ -179,7 +190,7 @@ pub fn parse_args() -> Config {
         }
     }
 
-    parse_untreated_args(&mut config.directories, &mut untreated_args);
+    parse_untreated_args(&mut config, &mut untreated_args);
 
 
     println!("{:?}", config);
