@@ -22,7 +22,6 @@ use std::path;
 pub const SEP: &str = "  ";
 pub const SEP_LEN: usize = SEP.len();
 
-// should be lower than 512
 const MIN_COLOR_SUM: u32 = 512;
 
 // Can this be moved into some kind of python-like enums ?
@@ -70,17 +69,6 @@ impl Entry {
         }
     }
 
-    /// Sort a given vector of indexes in order to only have the indexes of the darkest colors
-    fn sort_lowest_colors_indexes(lowest_colors_indexes: &mut Vec<usize>,
-                                  max_color_index: usize,
-                                  colors: &[u32; 3]) {
-
-        lowest_colors_indexes.remove(max_color_index);
-        if colors[lowest_colors_indexes[0]] > colors[lowest_colors_indexes[1]] {
-            lowest_colors_indexes.reverse();
-        }
-    }
-
     /// A lower level function that mutates the array of colors to brighten it
     fn pad_given_lowest_colors(lowest_colors_indexes: &mut Vec<usize>,
                                colors: &mut [u32; 3],
@@ -90,10 +78,12 @@ impl Entry {
 
         for color_index in lowest_colors_indexes.iter() {
             let pot_new_color: u32 = colors[*color_index] + (MIN_COLOR_SUM - color_sum);
+
             if pot_new_color < 255 {
                 colors[*color_index] = pot_new_color;
                 let [r, g, b]: [u32; 3] = *colors;
                 return (r as u8, g as u8, b as u8)
+
             } else {
                 colors[*color_index] = u8::MAX as u32;
                 color_sum = colors.iter().sum();
@@ -107,14 +97,8 @@ impl Entry {
     /// And then returns a "pastel" version of it
     fn pad_lowest_colors((red, green, blue): (u32, u32, u32), color_sum: u32) -> (u8, u8, u8) {
         let mut colors: [u32; 3] = [red, green, blue];
-        let max_color_index: usize = colors
-            .iter()
-            .enumerate()
-            .max_by_key(|&(_, item)| item)
-            .unwrap().0; // we know that it isn't empty, unwrap safely
-
         let mut lowest_colors_indexes: Vec<usize> = vec![0, 1, 2];
-        Self::sort_lowest_colors_indexes(&mut lowest_colors_indexes, max_color_index, &colors);
+        lowest_colors_indexes.sort_unstable_by_key(|i| colors[*i]);
         Self::pad_given_lowest_colors(&mut lowest_colors_indexes, &mut colors, color_sum)
     }
 
@@ -245,6 +229,7 @@ impl Entry {
         escape_seq
     }
 
+    /// A helper function to prepare comparison with another instance of Self
     fn prep_cmp(&self) -> (&EntryType, String, path::PathBuf) {
         let path: path::PathBuf = self.entry.path();
         let default: String = String::from("?");
