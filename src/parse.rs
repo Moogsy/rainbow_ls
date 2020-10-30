@@ -131,19 +131,15 @@ fn parse_double_dash(right_arg: String, arg_iter: &mut env::Args, untreated_args
     }
 }
 
-fn parse_untreated_args(config: &mut Config, untreated_args: &mut Vec<String>) {
-    for arg in untreated_args.iter() {
-        let pathbuf: path::PathBuf = path::PathBuf::from(arg);
-
-        if pathbuf.is_dir() { // the executable is automatically passed in argv
-            if pathbuf.read_dir().is_ok() {
-                config.ok_directories.push(pathbuf);
-            } else {
-                config.err_directories.push(pathbuf);
-            }
-        }
+fn check_pathbuf_validity(pathbuf: path::PathBuf, config: &mut Config) {
+    if pathbuf.read_dir().is_ok() {
+        config.ok_directories.push(pathbuf);
+    } else {
+        config.err_directories.push(pathbuf);
     }
-    // no path args were passed
+}
+
+fn check_no_path_passed(config: &mut Config) {
     if config.ok_directories.is_empty() && config.err_directories.is_empty() {
         let curr_dir: path::PathBuf = env::current_dir()
             .expect("No path args were passed and couldn't read / get current directory");
@@ -151,6 +147,28 @@ fn parse_untreated_args(config: &mut Config, untreated_args: &mut Vec<String>) {
         config.ok_directories.push(curr_dir);
     }
 }
+
+fn parse_untreated_args(config: &mut Config, untreated_args: &mut Vec<String>) {
+    let mut found_exec_path: bool = false;
+    for arg in untreated_args.iter() {
+        let pathbuf: path::PathBuf = path::PathBuf::from(arg);
+
+        // Assume that the first file path is the executable's
+        if pathbuf.is_dir() {  
+            check_pathbuf_validity(pathbuf, config);
+
+        } else if found_exec_path {
+            config.err_directories.push(pathbuf);
+
+        // GNU coreutils' ls prints the name of the first passed file, but reports other ones
+        } else { 
+            println!("{:?}", pathbuf);
+            found_exec_path = true;
+        }
+    }
+    check_no_path_passed(config);
+}
+
 pub fn parse_args() -> Config {
     let mut config: Config = Config::new();
 

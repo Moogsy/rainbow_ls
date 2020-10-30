@@ -222,6 +222,7 @@ impl Entry {
             .unwrap_or("?");
 
         escape_seq.push_str(file_name);
+        
         escape_seq.push_str("\x1B[0;00m");
 
         self.pad_filename(file_name, &mut escape_seq, longest_name_length);

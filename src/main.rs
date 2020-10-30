@@ -14,7 +14,6 @@
 /// You should have received a copy of the GNU General Public License
 /// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use std::env;
 use std::path;
 
 mod filetype;
@@ -34,9 +33,19 @@ fn get_metrics(dir_entries: &Vec<filetype::Entry>) -> (usize, usize) {
     (total_length, longest_name)
 }
 
-fn display_dir(dir: path::PathBuf, multiple_calls: bool) {
+/// Gets the current term's width
+/// TODO: rewrite it to avoid having deps
+fn get_term_width() -> usize {
+    if let Some(t_size) = term_size::dimensions() {
+        t_size.0
+    } else {
+        panic!("Failed to get term's size")
+    }
+}
 
-    if multiple_calls {
+fn display_dir(dir: &path::PathBuf, config: &parse::Config, is_called_multiple_times: bool) {
+
+    if is_called_multiple_times {
         if let Some(filename) = dir.file_name() {
             println!("{}", filename.to_str().unwrap_or("Unknown filename"));
         } else {
@@ -53,15 +62,9 @@ fn display_dir(dir: path::PathBuf, multiple_calls: bool) {
 
     dir_entries.sort();
 
-    let term_width: usize = {
-        if let Some(t_size) = term_size::dimensions() {
-            t_size.0
-        } else {
-            panic!("Failed to get term's size")
-        }
-    };
-
     let (total_length, longest_name_length): (usize, usize) = get_metrics(&dir_entries);
+
+    let term_width: usize = get_term_width();
 
     if total_length <= term_width {
         display::one_line(&dir_entries);
@@ -69,23 +72,20 @@ fn display_dir(dir: path::PathBuf, multiple_calls: bool) {
         display::multiline(&mut dir_entries, longest_name_length, term_width);
     }
 
-    if multiple_calls {
+    if is_called_multiple_times {
         println!("");
     }
-
-
 }
 
 
-#[allow(unreachable_code)]
 fn main() {
     let config: parse::Config = parse::parse_args();
 
-    let ok_dirs = config.ok_directories;
-    let multiple_calls = ok_dirs.len() != 1;
+    let ok_dirs = &config.ok_directories;
+    let is_called_multiple_times: bool = ok_dirs.len() != 1;
 
     for dir in ok_dirs {
-        display_dir(dir, multiple_calls);
+        display_dir(dir, &config, is_called_multiple_times);
     }
 
 
