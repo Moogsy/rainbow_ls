@@ -15,11 +15,11 @@
 /// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use std::env;
+use std::path;
 
 mod filetype;
 mod display;
 mod parse;
-
 
 fn get_metrics(dir_entries: &Vec<filetype::Entry>) -> (usize, usize) {
     let mut total_length: usize = filetype::SEP_LEN * (dir_entries.len() - 1);
@@ -34,12 +34,16 @@ fn get_metrics(dir_entries: &Vec<filetype::Entry>) -> (usize, usize) {
     (total_length, longest_name)
 }
 
+fn display_dir(dir: path::PathBuf, multiple_calls: bool) {
 
-fn main() {
-    let config: parse::Config = parse::parse_args();
+    if multiple_calls {
+        if let Some(filename) = dir.file_name() {
+            println!("{}", filename.to_str().unwrap_or("Unknown filename"));
+        } else {
+            println!("Unknown filename");
+        }
+    }
     
-    let dir = env::current_dir().expect("frick");
-
     let mut dir_entries: Vec<filetype::Entry> = dir
         .read_dir()
         .expect("Failed to read dir")
@@ -64,6 +68,29 @@ fn main() {
     } else {
         display::multiline(&mut dir_entries, longest_name_length, term_width);
     }
+
+    if multiple_calls {
+        println!("");
+    }
+
+
+}
+
+
+#[allow(unreachable_code)]
+fn main() {
+    let config: parse::Config = parse::parse_args();
+
+    let ok_dirs = config.ok_directories;
+    let multiple_calls = ok_dirs.len() != 1;
+
+    for dir in ok_dirs {
+        display_dir(dir, multiple_calls);
+    }
+
+
+
+    
 
     
 }

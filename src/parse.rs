@@ -20,7 +20,6 @@ use std::path;
 
 const VALID_ESCAPE_DIGITS: [u8; 8] = [0, 1, 2, 3, 4, 5, 7, 8];
 const HELP_TXT: &str = r#"
-
 ##########################
 # Per entry type control #
 ##########################
@@ -124,8 +123,9 @@ fn parse_min_sum(curr_config: &mut u32, right_arg: String) {
     }
 }
 
-/// Gets all remaining args after a "-- " to treat them as file paths
-fn parse_double_dash(arg_iter: &mut env::Args, untreated_args: &mut Vec<String>) {
+/// Gets all remaining args after a "--" to treat them as file paths
+fn parse_double_dash(right_arg: String, arg_iter: &mut env::Args, untreated_args: &mut Vec<String>) {
+    untreated_args.push(right_arg);
     while let Some(potential_fp) = arg_iter.next() {
         untreated_args.push(potential_fp);
     }
@@ -179,7 +179,7 @@ pub fn parse_args() -> Config {
                 "--unknown" => parse_formatting_arg(&mut config.unknown, right_arg),
                 "--sum" => parse_min_sum(&mut config.min_colour_sum, right_arg),
                 "--" => { // args after a double dash should be treated as a path
-                    parse_double_dash(&mut args, &mut untreated_args);
+                    parse_double_dash(right_arg, &mut args, &mut untreated_args);
                     break;
                 },
                 unknown_arg => panic!("Unrecognized argument: {}", unknown_arg),
@@ -189,10 +189,7 @@ pub fn parse_args() -> Config {
             panic!("Argument {} not filled", left_arg);
         }
     }
-
     parse_untreated_args(&mut config, &mut untreated_args);
-
-
     println!("{:?}", config);
 
     config
