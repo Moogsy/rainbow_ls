@@ -68,8 +68,11 @@ impl Config {
                     }
                     unknown => panic!("Unrecognized argument: {}", unknown),
                 }
+            } else {
+                panic!("Unfilled argument: {}", left_arg);
             }
-        }
+        } 
+
         subparsers::untreated_args_to_pathbuf(&mut d_self.ok_dirs, &mut d_self.err_dirs, &mut untreated_args);
 
         d_self
