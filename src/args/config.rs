@@ -13,6 +13,7 @@ pub struct Config {
     pub files: Vec<u8>,
     pub directories: Vec<u8>,
     pub symlinks: Vec<u8>,
+    pub unknowns: Vec<u8>,
 
     pub min_rgb_sum: u16,
 }
@@ -22,9 +23,12 @@ impl Default for Config {
         Self {
             ok_dirs: Vec::new(),
             err_dirs: Vec::new(),
+
             files: vec![1],
             directories: vec![2],
             symlinks: vec![3],
+            unknowns: vec![4],
+            
             min_rgb_sum: 255,
         }
     }
@@ -44,8 +48,11 @@ where T: Iterator<Item = String> {
         "--directories" => {
             subparsers::formatting_args(&mut d_config.directories, right_arg)
         },
-        "--symlink" => {
+        "--symlinks" => {
             subparsers::formatting_args(&mut d_config.symlinks, right_arg)
+        },
+        "--unknowns" => {
+            subparsers::formatting_args(&mut d_config.unknowns, right_arg)
         },
         "--sum" => {
             subparsers::minimal_sum(&mut d_config.min_rgb_sum, right_arg)

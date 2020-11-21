@@ -5,8 +5,8 @@ pub const TXT: &str = r#"
 
 --files [codes] 
 --directories [codes] 
---symlink [codes] 
---unknown [codes]  
+--symlinks [codes] 
+--unknowns [codes]  
 
 Where codes is one or more of:
 0 - Normal Style
@@ -21,9 +21,9 @@ Where codes is one or more of:
 Specify some formatting code to use for an entry type.
 
 Examples:
-    --file 1   // file is bold
-    --file 12  // file is bold and dim
-    --file 1 --dir 2 // file is bold, dir is dim
+    --files 1   // file is bold
+    --files 12  // file is bold and dim
+    --files 1 --dir 2 // file is bold, dir is dim
 
 #################
 # Color control #
