@@ -3,8 +3,8 @@ pub const TXT: &str = r#"
 # Per entry type control #
 ##########################
 
---file [codes] 
---dir [codes] 
+--files [codes] 
+--directories [codes] 
 --symlink [codes] 
 --unknown [codes]  
 

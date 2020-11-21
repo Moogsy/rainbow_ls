@@ -1,13 +1,11 @@
 use std::env;
 
-mod parser;
-
-
-
-
+mod args;
+mod display;
 
 fn main() {
-    let config = parser::config::Config::new();
-    println!("{:?}", config);
-    
+    let config: args::Config = args::Config::from(env::args());
+
+    for read_dir in config.ok_dirs {
+    }
 }
