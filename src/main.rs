@@ -1,11 +1,16 @@
 use std::env;
 
-mod args;
+mod parser;
 mod display;
 
 fn main() {
-    let config: args::Config = args::Config::from(env::args());
+    let args: env::Args = env::args();
 
-    for read_dir in config.ok_dirs {
-    }
+    let (config, passed_files): (parser::Config, parser::PassedFiles) = parser::get_user_input(args);
+
+    display::show_read_dirs(config, passed_files);
+
+    
+
+
 }

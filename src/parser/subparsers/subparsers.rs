@@ -9,11 +9,16 @@ const VALID_ESCAPE_DIGITS: [u8; 8] = [0, 1, 2, 3, 4, 5, 7, 8];
 /// Panics if it fails to do so or if an invalid digit was passed
 pub fn formatting_args(curr_config: &mut Vec<u8>, right_arg: String) {
     curr_config.clear(); 
+    
     for letter in right_arg.chars() {
-        let digit: u8 = letter
-            .to_digit(10)
-            .unwrap_or_else(|| panic!("Failed to convert {} to a number", letter))
-            as u8;
+        let digit: u8;
+
+        if let Some(converted_digit) = letter.to_digit(10) {
+            digit = converted_digit as u8;
+        } else {
+            eprintln!("Failed to parse {} in {} as a digit", letter, right_arg);
+            process::exit(1);
+        }
         
         if curr_config.contains(&digit) {
             eprintln!("Found duplicate escape digit: {}", digit);
@@ -61,10 +66,9 @@ fn check_final_pathbuf(curr_dir: path::PathBuf, ok_dirs: &mut Vec<fs::ReadDir>) 
     }
 }
 
-pub fn untreated_args_to_pathbuf(
-    ok_dirs: &mut Vec<fs::ReadDir>, 
-    err_dirs: &mut Vec<path::PathBuf>, 
-    untreated_args: Vec<String>) {
+pub fn dispatch_untreated_args(untreated_args: Vec<String>) -> (Vec<fs::ReadDir>, Vec<path::PathBuf>) {
+    let mut ok_dirs: Vec<fs::ReadDir> = Vec::new();
+    let mut err_dirs: Vec<path::PathBuf> = Vec::new();
 
     for arg in untreated_args {
         let pathbuf: path::PathBuf = path::PathBuf::from(arg);
@@ -82,10 +86,11 @@ pub fn untreated_args_to_pathbuf(
 
     if ok_dirs.is_empty() && err_dirs.is_empty() {
         if let Ok(curr_dir) = env::current_dir() {
-            check_final_pathbuf(curr_dir, ok_dirs);
+            check_final_pathbuf(curr_dir, &mut ok_dirs);
         } else {
             eprintln!("No directories were found, and couldn't reat the current one either.");
             process::exit(1);
         }
     }
+    (ok_dirs, err_dirs)
 }

@@ -1,10 +1,11 @@
 use std::ffi;
+use std::path;
+use std::cmp;
 use std::collections::hash_map;
 use std::fs;
 use std::hash::{Hash, Hasher};
 
-use crate::args;
-
+use crate::parser;
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 enum Kind {
@@ -14,9 +15,10 @@ enum Kind {
     Unknown,
 }
 
-#[derive(Debug, Hash)]
+#[derive(Debug)]
 pub struct Entry {
-    name: ffi::OsString,
+    pub name: ffi::OsString,
+    dir_entry: fs::DirEntry,
     kind: Kind,
 }
 
@@ -35,6 +37,23 @@ impl Entry {
         }
     }
 
+    fn prep_cmp(&self) -> (ffi::OsString, ffi::OsString, path::PathBuf) {
+        let filename: ffi::OsString = self.dir_entry.file_name();
+
+        let extension: ffi::OsString;
+
+        if let Some(ext) = self.dir_entry.path().extension() {
+            extension = ext.to_os_string();
+        } else {
+            extension = ffi::OsString::from("?");
+        }
+
+        let path: path::PathBuf = self.dir_entry.path();
+
+        (extension, filename, path)
+    }
+
+    /// Color related stuff
     fn make_color_component<T: Hash>(item: &T, hasher: &mut hash_map::DefaultHasher) -> u8 {
         item.hash(hasher);
         (hasher.finish() % 255) as u8
@@ -57,6 +76,7 @@ impl Entry {
             formatted_name.push(to_push);
         }
     }
+
     fn pad_filename(&self, formatted_name: &mut ffi::OsString, longest_name_length: usize) {
         let filename_len: usize = self.name.len();
         let diff: usize = longest_name_length.max(filename_len) - filename_len;
@@ -65,7 +85,8 @@ impl Entry {
             formatted_name.push(&sep);
         }
     }
-    pub fn get_formatted_name(&self, longest_name_length: usize, config: &args::Config) -> ffi::OsString {
+
+    pub fn get_formatted_name(&self, longest_name_length: usize, config: &parser::Config) -> ffi::OsString {
         
         let (red, green, blue): (u8, u8, u8) = self.get_color();
         let starting_seq: String = format!("\x1B[38;2;{};{};{}m", red, green, blue);
@@ -79,8 +100,7 @@ impl Entry {
             Kind::Unknown => Self::format_filename(&mut formatted_name, &config.unknowns),
         }
 
-        let name: ffi::OsString = self.name.clone();
-        formatted_name.push(name);
+        formatted_name.push(&self.name);
 
         self.pad_filename(&mut formatted_name, longest_name_length);
         formatted_name.push("\x1B[0;00m");
@@ -94,8 +114,31 @@ impl From<fs::DirEntry> for Entry {
         Self {
             kind: Self::determine_kind(&dir_entry),
             name: dir_entry.file_name(),
+            dir_entry: dir_entry,
         }
     }
 
+}
+
+impl PartialEq for Entry {
+   fn eq(&self, other: &Self) -> bool {
+       self.prep_cmp() == other.prep_cmp()
+   } 
+}
+
+impl PartialOrd for Entry {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Entry {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        self.prep_cmp().cmp(&other.prep_cmp())
+    }
+}
+
+// Must be there but eh
+impl Eq for Entry {
 }
 
