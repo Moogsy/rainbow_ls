@@ -8,7 +8,10 @@ fn main() {
 
     let (config, passed_files): (parser::Config, parser::PassedFiles) = parser::get_user_input(args);
 
-    display::show_read_dirs(config, passed_files);
+    for read_dir in passed_files.ok_dirs {
+        display::read_dir(&config, read_dir);
+    }
+
 
     
 

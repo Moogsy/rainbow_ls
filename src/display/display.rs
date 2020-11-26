@@ -24,10 +24,10 @@ fn get_metrics(dir_entries: &Vec<filetype::Entry>) -> (usize, usize) {
     let mut total_len: usize = SEP_LEN * (dir_entries.len() - 1);
     let mut longest_name_len: usize = 0;
     for entry in dir_entries.iter() {
-        let fn_len: usize = entry.name.len();
-        total_len += fn_len;
-        if longest_name_len < fn_len {
-            longest_name_len = fn_len;
+        let filename_len: usize = entry.name.len();
+        total_len += filename_len;
+        if longest_name_len < filename_len {
+            longest_name_len = filename_len;
         }
     }
     (total_len, longest_name_len)
@@ -56,28 +56,23 @@ fn show_one_line(entries: Vec<filetype::Entry>, errors: Vec<io::Error>, config: 
         .map(|entry| entry.get_formatted_name(0, config))
         .collect();
 
-    
     for entry in entries {
         let formatted_name: ffi::OsString = entry.get_formatted_name(0, &config);
-        print!("{:?}", formatted_name);
-
-
+        println!("{:?}", formatted_name);
     }
-
-
 }
 
 
 /// Pretty prints out read_dirs 
-pub fn show_read_dirs(config: parser::Config, passed_files: parser::PassedFiles) {
+pub fn read_dir(config: &parser::Config, read_dir: fs::ReadDir) {
+    let (entries, errors): (Vec<filetype::Entry>, Vec<io::Error>) = read_dirs_to_entry(read_dir);
+    let (total_len, longest_name_len): (usize, usize) = get_metrics(&entries);
+    let max_per_line: usize = get_max_per_line(longest_name_len);
 
-    for read_dir in passed_files.ok_dirs {
-        let (entries, errors): (Vec<filetype::Entry>, Vec<io::Error>) = read_dirs_to_entry(read_dir);
-        let (total_len, longest_name_length): (usize, usize) = get_metrics(&entries);
+    println!("max: {}, len = {}", max_per_line, entries.len());
 
-
-
-        
-
+    if entries.len() < max_per_line {
+        show_one_line(entries, errors, config);
     }
+
 }
