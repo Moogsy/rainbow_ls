@@ -90,15 +90,7 @@ impl Entry {
         
         let (red, green, blue): (u8, u8, u8) = self.get_color();
         let starting_seq: String = format!("\x1B[38;2;{};{};{}m", red, green, blue);
-
         let mut formatted_name: ffi::OsString = ffi::OsString::from(starting_seq);
-
-        match self.kind {
-            Kind::Directory => Self::format_filename(&mut formatted_name, &config.directories),
-            Kind::File => Self::format_filename(&mut formatted_name, &config.files),
-            Kind::Symlink => Self::format_filename(&mut formatted_name, &config.symlinks),
-            Kind::Unknown => Self::format_filename(&mut formatted_name, &config.unknowns),
-        }
 
         formatted_name.push(&self.name);
 

@@ -52,13 +52,17 @@ fn read_dirs_to_entry(read_dir: fs::ReadDir) -> (Vec<filetype::Entry>, Vec<io::E
 }
 
 fn show_one_line(entries: Vec<filetype::Entry>, errors: Vec<io::Error>, config: &parser::Config) {
-    let mapped: Vec<ffi::OsString> = entries.iter()
-        .map(|entry| entry.get_formatted_name(0, config))
-        .collect();
-
     for entry in entries {
         let formatted_name: ffi::OsString = entry.get_formatted_name(0, &config);
-        println!("{:?}", formatted_name);
+        if let Some(str_name) = formatted_name.to_str() {
+            print!("{}", str_name);
+        } else {
+            print!("{}", formatted_name.to_string_lossy());
+        }
+        print!("{}", SEP);
+    }
+    for error in errors {
+        println!("{}", error);
     }
 }
 
