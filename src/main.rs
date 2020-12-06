@@ -11,9 +11,4 @@ fn main() {
     for read_dir in passed_files.ok_dirs {
         display::read_dir(&config, read_dir);
     }
-
-
-    
-
-
 }

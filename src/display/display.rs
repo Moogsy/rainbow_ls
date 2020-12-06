@@ -66,6 +66,22 @@ fn show_one_line(entries: Vec<filetype::Entry>, errors: Vec<io::Error>, config: 
     }
 }
 
+fn show_multiline(entries: Vec<filetype::Entry>, 
+                  errors: Vec<io::Error>, 
+                  config: &parser::Config, 
+                  longest_name_len: usize) {
+
+    for entry in entries {
+        let formatted_name: ffi::OsString = entry.get_formatted_name(longest_name_len, &config);
+
+        if let Some(str_name) = formatted_name.to_str() {
+            print!("{}", str_name);
+        } else {
+            println!("{}", formatted_name.to_string_lossy());
+        }
+    }
+}
+
 
 /// Pretty prints out read_dirs 
 pub fn read_dir(config: &parser::Config, read_dir: fs::ReadDir) {
@@ -75,8 +91,9 @@ pub fn read_dir(config: &parser::Config, read_dir: fs::ReadDir) {
 
     println!("max: {}, len = {}", max_per_line, entries.len());
 
-    if entries.len() < max_per_line {
+    if entries.len() > max_per_line {
+        show_multiline(entries, errors, config, longest_name_len);
+    } else {
         show_one_line(entries, errors, config);
     }
-
 }

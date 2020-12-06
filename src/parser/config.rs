@@ -1,6 +1,7 @@
 use std::path;
 use std::fs;
 use std::process;
+use term_size;
 
 use super::subparsers;
 use super::help;
@@ -13,16 +14,28 @@ pub struct Config {
     pub symlinks: Vec<u8>,
     pub unknowns: Vec<u8>,
     pub min_rgb_sum: u16,
+    pub term_width: usize,
+}
+
+fn get_term_width() -> usize {
+    if let Some((width, _)) = term_size::dimensions() {
+       width 
+    } else {
+       eprintln!("Fuck");
+       process::exit(1);
+    }
+
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             files: vec![1],
-            directories: vec![2],
-            symlinks: vec![3],
-            unknowns: vec![4],
-            min_rgb_sum: 255,
+            directories: vec![1, 7],
+            symlinks: vec![1, 3],
+            unknowns: vec![1, 4],
+            min_rgb_sum: 512,
+            term_width: get_term_width(),
         }
     }
 }
