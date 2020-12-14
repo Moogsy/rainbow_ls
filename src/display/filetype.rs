@@ -4,6 +4,7 @@ use std::cmp;
 use std::collections::hash_map;
 use std::fs;
 use std::hash::{Hash, Hasher};
+use std::borrow;
 
 use crate::parser;
 
@@ -71,8 +72,6 @@ impl RgbColor {
                 **color = u8::MAX;
 
                 colors_sum += (u8::MAX - old_color) as u16;
-
-
             }
         }
     }
@@ -138,18 +137,7 @@ impl Entry {
             formatted_name.push(to_push);
         }
     }
-
-    fn pad_filename(&self, formatted_name: &mut ffi::OsString, longest_name_len: usize) {
-        let filename_len: usize = self.name.len();
-        // Allows us to pass 0 for no padding
-        let diff: usize = longest_name_len.max(filename_len) - filename_len;
-        let sep: ffi::OsString = ffi::OsString::from(" ");
-        for _ in 0..diff {
-            formatted_name.push(&sep);
-        }
-    }
-
-    pub fn get_formatted_name(&self, longest_name_length: usize, config: &parser::Config) -> ffi::OsString {
+    pub fn get_formatted_name(&self, config: &parser::Config) -> ffi::OsString {
 
         let mut color: RgbColor = self.get_color();
         color.pad_lowest(config.min_rgb_sum);
@@ -167,7 +155,6 @@ impl Entry {
         formatted_name.push(&self.name);
         formatted_name.push("\x1B[0;00m");
 
-        self.pad_filename(&mut formatted_name, longest_name_length);
         formatted_name
     }
 }

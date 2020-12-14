@@ -1,6 +1,7 @@
-use std::fs;
+use std::{collections::VecDeque, ascii::escape_default, fs};
 use std::io;
 use std::process;
+use std::borrow;
 use std::ffi;
 
 use term_size;
@@ -12,7 +13,7 @@ const SEP: &str = " ";
 const SEP_LEN: usize = SEP.len();
 
 
-fn get_max_per_line(longest_name_len: usize) -> usize {
+fn get_max_column_per_line(longest_name_len: usize) -> usize {
     if let Some((width, _)) = term_size::dimensions() {
         width / (longest_name_len + SEP_LEN)
     } else {
@@ -53,13 +54,13 @@ fn read_dirs_to_entry(read_dir: fs::ReadDir) -> (Vec<filetype::Entry>, Vec<io::E
 
 fn show_one_line(entries: Vec<filetype::Entry>, errors: Vec<io::Error>, config: &parser::Config) {
     for entry in entries {
-        let formatted_name: ffi::OsString = entry.get_formatted_name(0, &config);
-        if let Some(str_name) = formatted_name.to_str() {
-            print!("{}", str_name);
+        let formatted_name: ffi::OsString = entry.get_formatted_name(&config);
+
+        if let Some(name_str) = formatted_name.to_str() {
+            print!("{}{}", name_str, SEP);
         } else {
-            print!("{}", formatted_name.to_string_lossy());
+            print!("{}{}", formatted_name.to_string_lossy(), SEP);
         }
-        print!("{}", SEP);
     }
     for error in errors {
         println!("{}", error);
@@ -69,30 +70,32 @@ fn show_one_line(entries: Vec<filetype::Entry>, errors: Vec<io::Error>, config: 
 fn show_multiline(entries: Vec<filetype::Entry>, 
                   errors: Vec<io::Error>, 
                   config: &parser::Config, 
-                  longest_name_len: usize) {
+                  longest_name_len: usize,
+                  max_column_per_line: usize) {
 
-    for entry in entries {
-        let formatted_name: ffi::OsString = entry.get_formatted_name(longest_name_len, &config);
+    let entry_names: Vec<ffi::OsString> = entries
+        .iter()
+        .map(|entry| entry.get_formatted_name(&config))
+        .collect();
 
-        if let Some(str_name) = formatted_name.to_str() {
-            print!("{}", str_name);
-        } else {
-            println!("{}", formatted_name.to_string_lossy());
-        }
+    // That's a big ouch, but I can't think of anything better for now
+    println!("{:?}", entry_names);
+
+    for error in errors {
+        println!("{}", error);
     }
 }
-
 
 /// Pretty prints out read_dirs 
 pub fn read_dir(config: &parser::Config, read_dir: fs::ReadDir) {
     let (entries, errors): (Vec<filetype::Entry>, Vec<io::Error>) = read_dirs_to_entry(read_dir);
     let (total_len, longest_name_len): (usize, usize) = get_metrics(&entries);
-    let max_per_line: usize = get_max_per_line(longest_name_len);
+    let max_column_per_line: usize = get_max_column_per_line(longest_name_len);
 
-    println!("max: {}, len = {}", max_per_line, entries.len());
+    println!("max: {}, len = {}", max_column_per_line, entries.len());
 
-    if entries.len() > max_per_line {
-        show_multiline(entries, errors, config, longest_name_len);
+    if entries.len() > max_column_per_line {
+        show_multiline(entries, errors, config, longest_name_len, max_column_per_line);
     } else {
         show_one_line(entries, errors, config);
     }
