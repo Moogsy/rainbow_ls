@@ -4,7 +4,6 @@ use std::cmp;
 use std::collections::hash_map;
 use std::fs;
 use std::hash::{Hash, Hasher};
-use std::borrow;
 
 use crate::parser;
 
