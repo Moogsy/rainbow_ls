@@ -9,33 +9,42 @@ use super::help;
 
 #[derive(Debug)]
 pub struct Config {
+    // Chosen by the user
     pub files: Vec<u8>,
     pub directories: Vec<u8>,
     pub symlinks: Vec<u8>,
     pub unknowns: Vec<u8>,
+
     pub min_rgb_sum: u16,
+    pub separator: String,
+    pub padding: char,
+
+    pub read_graphemes: bool,
+    pub show_dotfiles: bool,
+    
+    // Auto-generated
     pub term_width: usize,
 }
 
-fn get_term_width() -> usize {
-    if let Some((width, _)) = term_size::dimensions() {
-       width 
-    } else {
-       eprintln!("Fuck");
-       process::exit(1);
-    }
-
-}
 
 impl Default for Config {
     fn default() -> Self {
-        Self {
-            files: vec![1],
-            directories: vec![1, 7],
-            symlinks: vec![1, 3],
-            unknowns: vec![1, 4],
-            min_rgb_sum: 512,
-            term_width: get_term_width(),
+        if let Some((width, _)) = term_size::dimensions() {
+            Self {
+                files: vec![1],
+                directories: vec![1, 7],
+                symlinks: vec![1, 3],
+                unknowns: vec![1, 4],
+                min_rgb_sum: 512,
+                term_width: width,
+                separator: String::from("  "),
+                padding: ' ',
+                read_graphemes: true,
+                show_dotfiles: false,
+            }
+        } else {
+            eprintln!("Failed to get term's width");
+            process::exit(1);
         }
     }
 }
@@ -69,10 +78,22 @@ where T: Iterator<Item = String> {
         "--sum" => {
             subparsers::minimal_sum(&mut d_config.min_rgb_sum, right_arg)
         },
+        "--separator" => {
+            d_config.separator = right_arg;
+        },
+        "--padding" => {
+            subparsers::padding(&mut d_config.padding, right_arg);
+        },
+        "--read-graphemes" => {
+            subparsers::bool_converter(&mut d_config.read_graphemes, right_arg);
+        },
+        "--show-dotfiles" => {
+            subparsers::bool_converter(&mut d_config.show_dotfiles, right_arg);
+        },
         "--" => {
             untreated_args.push(right_arg);
             subparsers::consume_rest(untreated_args,  args_iter)
-        }
+        },
         unknown => {
             eprintln!("Unrecognized argument: {}", unknown);
             process::exit(1);

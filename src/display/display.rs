@@ -1,102 +1,139 @@
-use std::{collections::VecDeque, ascii::escape_default, fs};
-use std::io;
-use std::process;
+use std::slice;
 use std::borrow;
 use std::ffi;
-
-use term_size;
+use std::io;
+use std::fs;
+use std::iter;
 
 use super::filetype;
 use crate::parser;
 
-const SEP: &str = " ";
-const SEP_LEN: usize = SEP.len();
+
+type EntryDisplayIterator<'a> = iter::Take<iter::Skip<slice::Iter<'a, filetype::Entry>>>;
 
 
-fn get_max_column_per_line(longest_name_len: usize) -> usize {
-    if let Some((width, _)) = term_size::dimensions() {
-        width / (longest_name_len + SEP_LEN)
-    } else {
-        eprintln!("Failed to get current term's size");
-        process::exit(1);
-    }
-}
-fn get_metrics(dir_entries: &Vec<filetype::Entry>) -> (usize, usize) {
-    let mut total_len: usize = SEP_LEN * (dir_entries.len() - 1);
-    let mut longest_name_len: usize = 0;
-    for entry in dir_entries.iter() {
-        let filename_len: usize = entry.name.len();
-        total_len += filename_len;
-        if longest_name_len < filename_len {
-            longest_name_len = filename_len;
-        }
-    }
-    (total_len, longest_name_len)
-}
-
-fn read_dirs_to_entry(read_dir: fs::ReadDir) -> (Vec<filetype::Entry>, Vec<io::Error>) {
+fn read_dirs_to_entry(config: &parser::Config, read_dir: fs::ReadDir) -> (Vec<filetype::Entry>, Vec<io::Error>, usize) {
     let mut errors: Vec<io::Error> = Vec::new();
     let mut entries: Vec<filetype::Entry> = Vec::new();
+    let mut total_length: usize = 0;
 
     for read_dir_entry in read_dir.into_iter() {
+        
         match read_dir_entry {
             Ok(dir_entry) => {
-                let entry: filetype::Entry = filetype::Entry::from(dir_entry);
-                entries.push(entry);
+
+                let name: ffi::OsString = dir_entry.file_name();
+
+                if config.show_dotfiles {
+                    let entry: filetype::Entry = filetype::Entry::new(config, name, dir_entry);
+                    total_length += entry.len() + config.separator.len();
+                    entries.push(entry);
+
+                } else if !name.to_string_lossy().starts_with(".") {
+                    let entry: filetype::Entry = filetype::Entry::new(config, name, dir_entry);
+                    total_length += entry.len() + config.separator.len();
+                    entries.push(entry);
+                }
             },
             Err(error) => errors.push(error),
         }
     }
     entries.sort();
 
-    (entries, errors)
+    (entries, errors, total_length)
 }
 
-fn show_one_line(entries: Vec<filetype::Entry>, errors: Vec<io::Error>, config: &parser::Config) {
-    for entry in entries {
-        let formatted_name: ffi::OsString = entry.get_formatted_name(&config);
+fn get_column_length(entries: &Vec<filetype::Entry>, num_columns: usize, column: usize) -> usize {
+    let num_rows: usize = (entries.len() / num_columns) + 1;
+    let mut column_length: usize = 0;
+    
+    let entry_iterator: EntryDisplayIterator = entries.iter().skip(num_rows * column).take(num_rows);
 
-        if let Some(name_str) = formatted_name.to_str() {
-            print!("{}{}", name_str, SEP);
-        } else {
-            print!("{}{}", formatted_name.to_string_lossy(), SEP);
+    for entry in entry_iterator {
+        column_length = entry.len().max(column_length);
+    }
+
+    column_length
+}
+
+fn get_column_lengths(config: &parser::Config, entries: &Vec<filetype::Entry>) -> Vec<usize> {
+    let mut best_column_lengths: Vec<usize> = Vec::new();
+
+    // This can likely be optimized, 
+    // but for now, let's get away with a working implementation
+    
+    for num_columns in 1..entries.len() {
+        let mut column_lengths: Vec<usize> = Vec::new();
+
+        for column in 0..num_columns {
+            let column_length: usize = get_column_length(&entries, num_columns, column);
+            column_lengths.push(column_length);
+        }
+
+        let length_sum: usize = column_lengths.iter().sum();
+        let total_sep_length: usize = config.separator.len() * (column_lengths.len() - 1);
+        let total_length: usize = length_sum + total_sep_length;
+
+        if total_length <= config.term_width && column_lengths.len() > best_column_lengths.len() {
+            best_column_lengths = column_lengths;
         }
     }
-    for error in errors {
-        println!("{}", error);
-    }
+    best_column_lengths
 }
 
 fn show_multiline(entries: Vec<filetype::Entry>, 
-                  errors: Vec<io::Error>, 
                   config: &parser::Config, 
-                  longest_name_len: usize,
-                  max_column_per_line: usize) {
+                  column_sizes: Vec<usize>) {
 
-    let entry_names: Vec<ffi::OsString> = entries
+    let num_columns: usize = column_sizes.len();
+    let num_rows: usize = (entries.len() / num_columns) + 1;
+
+    for index in 0..num_rows {
+
+    let column_display_iterator = entries
         .iter()
-        .map(|entry| entry.get_formatted_name(&config))
-        .collect();
+        .skip(index)
+        .step_by(num_rows)
+        .zip(column_sizes.iter())
+        .enumerate();
 
-    // That's a big ouch, but I can't think of anything better for now
-    println!("{:?}", entry_names);
+    let no_separator_index: usize = column_display_iterator.len().max(1) - 1;
 
-    for error in errors {
-        println!("{}", error);
+    for (inner_index, (entry, column_size)) in column_display_iterator {
+
+        let lossy_name: borrow::Cow<str> = entry.formatted_name.to_string_lossy();
+        print!("{}", lossy_name);
+
+        for _ in 0..(column_size - entry.len()) { 
+            print!("{}", config.padding);
+        }
+
+        // There must be a way to directly get the index of that one
+        if inner_index != no_separator_index {
+            print!("{}", config.separator);
+        }
+    }
+    println!();
     }
 }
 
 /// Pretty prints out read_dirs 
 pub fn read_dir(config: &parser::Config, read_dir: fs::ReadDir) {
-    let (entries, errors): (Vec<filetype::Entry>, Vec<io::Error>) = read_dirs_to_entry(read_dir);
-    let (total_len, longest_name_len): (usize, usize) = get_metrics(&entries);
-    let max_column_per_line: usize = get_max_column_per_line(longest_name_len);
-
-    println!("max: {}, len = {}", max_column_per_line, entries.len());
-
-    if entries.len() > max_column_per_line {
-        show_multiline(entries, errors, config, longest_name_len, max_column_per_line);
-    } else {
-        show_one_line(entries, errors, config);
+    let (entries, errors, total_length): (Vec<filetype::Entry>, Vec<io::Error>, usize) = read_dirs_to_entry(config, read_dir);
+    
+    if total_length <= config.term_width {
+        for entry in entries.iter().take(entries.len().max(1) - 1) {
+            print!("{}{}", entry.formatted_name.to_string_lossy(), config.separator);
+        }
+        if let Some(entry) = entries.last() {
+            print!("{}\n", entry.formatted_name.to_string_lossy())
+        }
+    } else { 
+        let column_sizes: Vec<usize> = get_column_lengths(config, &entries);
+        show_multiline(entries, config, column_sizes);
+    }
+        
+    for error in errors {
+        println!("{}", error);
     }
 }

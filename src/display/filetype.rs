@@ -1,17 +1,15 @@
 use std::ffi;
-use std::path;
 use std::cmp;
-use std::collections::hash_map;
 use std::fs;
-use std::hash::{Hash, Hasher};
-use std::borrow;
+
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::parser;
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 enum Kind {
     Directory,
-    File,
+    File(bool), // is_dotfile
     Symlink,
     Unknown,
 }
@@ -19,7 +17,10 @@ enum Kind {
 #[derive(Debug)]
 pub struct Entry {
     pub name: ffi::OsString,
-    dir_entry: fs::DirEntry,
+    pub formatted_name: ffi::OsString,
+
+    len: usize,
+    extension: Option<ffi::OsString>,
     kind: Kind,
 }
 
@@ -77,18 +78,15 @@ impl RgbColor {
     }
 }
 
-impl From<(u8, u8, u8)> for RgbColor {
-    fn from(colors: (u8, u8, u8)) -> Self {
-        let (red, green, blue) = colors;
-        Self {red, green, blue}
-    }
-}
-
 impl Entry {
-    fn determine_kind(dir_entry: &fs::DirEntry) -> Kind {
+    fn determine_kind(name: &str, dir_entry: &fs::DirEntry) -> Kind {
         if let Ok(file_type) = dir_entry.file_type() {
             if file_type.is_file() {
-                Kind::File
+                if name.starts_with(".") {
+                    Kind::File(true)
+                } else {
+                    Kind::File(false)
+                }
             } else if file_type.is_dir() {
                 Kind::Directory
             } else {
@@ -99,37 +97,13 @@ impl Entry {
         }
     }
 
-    fn get_extension(&self) -> ffi::OsString {
-        if let Some(ext) = self.dir_entry.path().extension() {
-            ext.to_os_string()
+    fn determine_len(config: &parser::Config, name: &ffi::OsString) -> usize {
+        if config.read_graphemes {
+            name.to_string_lossy().graphemes(true).count()
         } else {
-            ffi::OsString::from("?")
+            name.len()
         }
     }
-
-    fn prep_cmp(&self) -> (&Kind, ffi::OsString, ffi::OsString, path::PathBuf) {
-        let filename: ffi::OsString = self.dir_entry.file_name();
-        let extension: ffi::OsString = self.get_extension();
-        let path: path::PathBuf = self.dir_entry.path();
-
-        (&self.kind, extension, filename, path)
-    }
-
-    /// Color related stuff
-    fn make_color_component<T: Hash>(item: &T, hasher: &mut hash_map::DefaultHasher) -> u8 {
-        item.hash(hasher);
-        (hasher.finish() % 255) as u8
-    }
-    fn get_color(&self) -> RgbColor {
-        let mut hasher: hash_map::DefaultHasher = hash_map::DefaultHasher::new();
-        
-        let red: u8 = Self::make_color_component(&self.get_extension(), &mut hasher);
-        let green: u8 = Self::make_color_component(&self.name, &mut hasher);
-        let blue: u8 = Self::make_color_component(&self.kind, &mut hasher);
-
-        RgbColor::from((red, green, blue))
-    }
-
     fn format_filename(formatted_name: &mut ffi::OsString, codes: &Vec<u8>) {
         for code in codes {
             let code_str: String = format!("\x1b[{}m", code);
@@ -137,42 +111,82 @@ impl Entry {
             formatted_name.push(to_push);
         }
     }
-    pub fn get_formatted_name(&self, config: &parser::Config) -> ffi::OsString {
 
-        let mut color: RgbColor = self.get_color();
-        color.pad_lowest(config.min_rgb_sum);
-        
+
+    fn determine_formatted_name(config: &parser::Config, name: &ffi::OsString, kind: &Kind, color: &mut RgbColor) -> ffi::OsString {
         let starting_seq: String = format!("\x1B[38;2;{};{};{}m", color.red, color.green, color.blue);
         let mut formatted_name: ffi::OsString = ffi::OsString::from(starting_seq);
 
-        match self.kind {
-            Kind::File => Self::format_filename(&mut formatted_name, &config.files),
+        match kind {
+            Kind::File(_) => Self::format_filename(&mut formatted_name, &config.files),
             Kind::Directory => Self::format_filename(&mut formatted_name, &config.directories),
             Kind::Symlink => Self::format_filename(&mut formatted_name, &config.symlinks),
             Kind::Unknown => Self::format_filename(&mut formatted_name, &config.unknowns),
         };
 
-        formatted_name.push(&self.name);
+        formatted_name.push(name);
         formatted_name.push("\x1B[0;00m");
 
         formatted_name
-    }
-}
 
-impl From<fs::DirEntry> for Entry {
-    fn from(dir_entry: fs::DirEntry) -> Self {
-        Self {
-            kind: Self::determine_kind(&dir_entry),
-            name: dir_entry.file_name(),
-            dir_entry: dir_entry,
+    }
+    fn determine_extension(dir_entry: &fs::DirEntry) -> Option<ffi::OsString> {
+        if let Some(ext) = dir_entry.path().extension() {
+            Some(ext.to_os_string())
+        } else {
+            None
         }
     }
 
+    fn make_colors(name: &ffi::OsString, extension: &Option<ffi::OsString>) -> RgbColor {
+        let mut prod: u32 = 11;
+
+        if let Some(ext) = extension {
+            for byte in ext.to_string_lossy().bytes() {
+                prod = prod.wrapping_mul(byte as u32);
+            }
+        } else {
+            for byte in name.to_string_lossy().bytes() {
+                prod = prod.wrapping_mul(byte as u32);
+            }
+        }
+
+        let (green, blue): (u32, u32) = (prod / 255, prod % 255);
+        let (mut red, green): (u32, u32) = (green / 255, green % 255);
+        red %= 255;
+        
+        RgbColor {
+            red: red as u8, 
+            green: green as u8, 
+            blue: blue as u8,
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+
+    pub fn new(config: &parser::Config, name: ffi::OsString, dir_entry: fs::DirEntry) -> Self {
+        let kind: Kind = Self::determine_kind(&name.to_string_lossy(), &dir_entry);
+        let extension: Option<ffi::OsString> = Self::determine_extension(&dir_entry);
+        let len: usize = Self::determine_len(config, &name);
+        let mut color: RgbColor = Self::make_colors(&name, &extension);
+        color.pad_lowest(config.min_rgb_sum);
+
+        Self {
+            formatted_name: Self::determine_formatted_name(config, &name, &kind, &mut color),
+            len,
+            extension,
+            kind,
+            name,
+        }
+    }
 }
 
 impl PartialEq for Entry {
    fn eq(&self, other: &Self) -> bool {
-       self.prep_cmp() == other.prep_cmp()
+       (&self.kind, &self.extension, &self.name) == (&other.kind, &other.extension, &other.name)
    } 
 }
 
@@ -184,7 +198,7 @@ impl PartialOrd for Entry {
 
 impl Ord for Entry {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
-        self.prep_cmp().cmp(&other.prep_cmp())
+        (&self.kind, &self.extension, &self.name).cmp(&(&other.kind, &other.extension, &other.name))
     }
 }
 

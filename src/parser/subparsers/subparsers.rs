@@ -1,9 +1,13 @@
 use std::env;
+use std::str;
 use std::path;
 use std::process;
 use std::fs;
 
 const VALID_ESCAPE_DIGITS: [u8; 8] = [0, 1, 2, 3, 4, 5, 7, 8];
+
+const TRUTHY_WORDS: [&str; 7] = ["yes", "y", "true", "t", "1", "enable", "on"];
+const FALSY_WORDS: [&str; 7] = ["no", "n", "false", "f", "0", "disable", "off"];
 
 /// Tries to parse the escape digits
 /// Panics if it fails to do so or if an invalid digit was passed
@@ -49,6 +53,44 @@ pub fn minimal_sum(curr_config: &mut u16, right_arg: String) {
         *curr_config = min_sum;
     }
 }
+
+pub fn bool_converter(curr_config: &mut bool, right_arg: String) {
+    let right_arg_str: &&str = &right_arg.as_str();
+
+    if TRUTHY_WORDS.contains(right_arg_str) {
+        *curr_config = true;
+
+    } else if FALSY_WORDS.contains(right_arg_str) {
+        *curr_config = false;
+
+    } else {
+        eprintln!("Expected an argument contained in: \n[{}] or \n[{}], got {}", 
+                 TRUTHY_WORDS.join(","), 
+                 FALSY_WORDS.join(","),
+                 right_arg_str
+        );
+        process::exit(1);
+    }
+
+}
+
+pub fn padding(curr_config: &mut char, right_arg: String) {
+    
+    let mut chr_iter: str::Chars = right_arg.chars();
+    
+    if let Some(chr) = chr_iter.next() {
+        *curr_config = chr;
+    } else {
+        eprintln!("Invalid char passed for padding: '{}'", right_arg);
+        process::exit(1);
+    }
+
+    if let Some(_) = chr_iter.next() {
+        eprintln!("Padding must consist of a single char, got: {}", right_arg);
+        process::exit(1);
+    }
+}
+
 pub fn consume_rest<T>(untreated_args: &mut Vec<String>, args_iterator: T)
 where 
     T: Iterator<Item = String> {
@@ -94,3 +136,5 @@ pub fn dispatch_untreated_args(untreated_args: Vec<String>) -> (Vec<fs::ReadDir>
     }
     (ok_dirs, err_dirs)
 }
+
+
