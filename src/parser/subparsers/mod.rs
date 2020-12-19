@@ -4,6 +4,8 @@ pub use subparsers::{
     minimal_sum,
     consume_rest,
     dispatch_untreated_args,
+    bool_converter,
+    padding,
 };
 
 
