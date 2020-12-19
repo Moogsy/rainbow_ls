@@ -14,17 +14,17 @@ pub struct Config {
     pub symlinks: Vec<u8>,
     pub unknowns: Vec<u8>,
     pub min_rgb_sum: u16,
-    pub term_width: usize,
+    pub term_width: Option<usize>,
+    pub separator: String,
+    pub padding: String,
 }
 
-fn get_term_width() -> usize {
+fn get_term_width() -> Option<usize> {
     if let Some((width, _)) = term_size::dimensions() {
-       width 
+        Some(width)
     } else {
-       eprintln!("Fuck");
-       process::exit(1);
+        None
     }
-
 }
 
 impl Default for Config {
@@ -36,6 +36,8 @@ impl Default for Config {
             unknowns: vec![1, 4],
             min_rgb_sum: 512,
             term_width: get_term_width(),
+            separator: String::from(" "),
+            padding: String::from(" "),
         }
     }
 }
@@ -68,6 +70,12 @@ where T: Iterator<Item = String> {
         },
         "--sum" => {
             subparsers::minimal_sum(&mut d_config.min_rgb_sum, right_arg)
+        },
+        "--separator" => {
+            d_config.separator = right_arg;
+        },
+        "--padding" => {
+            d_config.padding = right_arg;
         },
         "--" => {
             untreated_args.push(right_arg);

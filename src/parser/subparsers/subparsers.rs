@@ -49,6 +49,7 @@ pub fn minimal_sum(curr_config: &mut u16, right_arg: String) {
         *curr_config = min_sum;
     }
 }
+
 pub fn consume_rest<T>(untreated_args: &mut Vec<String>, args_iterator: T)
 where 
     T: Iterator<Item = String> {
@@ -94,3 +95,5 @@ pub fn dispatch_untreated_args(untreated_args: Vec<String>) -> (Vec<fs::ReadDir>
     }
     (ok_dirs, err_dirs)
 }
+
+
