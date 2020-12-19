@@ -1,5 +1,5 @@
+use std::cmp;
 use std::io;
-use std::process;
 use std::ffi;
 use std::fs;
 
@@ -9,26 +9,6 @@ use super::filetype;
 use crate::parser;
 
 const SEP: &str = " ";
-
-
-fn get_max_column_per_line(longest_name_len: usize) -> usize {
-    if let Some((width, _)) = term_size::dimensions() {
-        width / (longest_name_len + 1)
-    } else {
-        eprintln!("Failed to get current term's size");
-        process::exit(1);
-    }
-}
-fn get_longest_name_len(dir_entries: &Vec<filetype::Entry>) -> usize {
-    let mut longest_name_len: usize = 0;
-    for entry in dir_entries.iter() {
-        let filename_len: usize = entry.name.len();
-        if longest_name_len < filename_len {
-            longest_name_len = filename_len;
-        }
-    }
-    longest_name_len
-}
 
 fn read_dirs_to_entry(read_dir: fs::ReadDir) -> (Vec<filetype::Entry>, Vec<io::Error>) {
     let mut errors: Vec<io::Error> = Vec::new();
@@ -48,31 +28,52 @@ fn read_dirs_to_entry(read_dir: fs::ReadDir) -> (Vec<filetype::Entry>, Vec<io::E
     (entries, errors)
 }
 
-fn show_one_line(entries: Vec<filetype::Entry>, config: &parser::Config) {
-    for entry in entries {
-        let formatted_name: ffi::OsString = entry.get_formatted_name(&config);
-
-        if let Some(name_str) = formatted_name.to_str() {
-            print!("{}{}", name_str, SEP);
-        } else {
-            print!("{}{}", formatted_name.to_string_lossy(), SEP);
-        }
+fn get_column_length(entries: &Vec<filetype::Entry>, num_columns: usize, column: usize) -> usize {
+    let mut column_length: usize = 0;
+    
+    for entry in entries.iter().skip(entries.len()/num_columns * column).take(entries.len()/num_columns) {
+        column_length = cmp::max(column_length, entry.name.len());
     }
+
+    return column_length;
+}
+
+fn get_column_lengths(entries: &Vec<filetype::Entry>) -> Vec<usize> {
+    let mut best = Vec::new();
+
+    if let Some((width, _)) = term_size::dimensions() {
+        for index in 1..entries.len() {
+            let mut lengths = Vec::new();
+
+            for column in 0..index {
+                lengths.push(get_column_length(&entries, index, column));
+            }
+ 
+            if lengths.iter().sum::<usize>() + SEP.len() * (lengths.len() - 1)  <= width && lengths.len() > best.len() {
+                best = lengths;
+            }
+
+        }
+    } else {
+        eprintln!("Failed to get current term's size");
+        best.push(get_column_length(&entries, 1, 0));
+    }
+
+    return best;
 }
 
 #[allow(unused_variables)]
-fn show_multiline(entries: Vec<filetype::Entry>, 
+fn show_entries(entries: Vec<filetype::Entry>, 
                   config: &parser::Config, 
-                  longest_name_len: usize,
-                  max_column_per_line: usize) {
+                  column_sizes: Vec<usize>) {
 
-    for index in 0..4 {
-        println!("Index={}", index);
+    for index in 0..entries.len()/column_sizes.len() {
 
-        for entry in entries.iter().skip(index).step_by(4) {
+        for (entry, column_size) in entries.iter().skip(index).step_by(entries.len()/column_sizes.len()).zip(column_sizes.iter()) {
 
             let formatted_name: ffi::OsString = entry.get_formatted_name(config);
-            let diff: usize = longest_name_len - entry.name.len();
+            
+            let diff = column_size - entry.name.len();
             
             if let Some(name_str) = formatted_name.to_str() {
                 print!("{}{}", name_str, SEP);
@@ -92,16 +93,10 @@ fn show_multiline(entries: Vec<filetype::Entry>,
 /// Pretty prints out read_dirs 
 pub fn read_dir(config: &parser::Config, read_dir: fs::ReadDir) {
     let (entries, errors): (Vec<filetype::Entry>, Vec<io::Error>) = read_dirs_to_entry(read_dir);
-    let longest_name_len = get_longest_name_len(&entries);
-    let max_column_per_line: usize = get_max_column_per_line(longest_name_len);
+    let column_lengths = get_column_lengths(&entries);
 
-    println!("max={}, len={}", max_column_per_line, entries.len());
-
-    if entries.len() > max_column_per_line {
-        show_multiline(entries, config, longest_name_len, max_column_per_line);
-    } else {
-        show_one_line(entries, config);
-    }
+    //println!("{:?}", column_lengths);
+    show_entries(entries, config, column_lengths);
     
     for error in errors {
         println!("{}", error);
