@@ -1,5 +1,5 @@
 [package]
-name = "Rainbow-LS"
+name = "Rainbow_LS"
 version = "0.1.0"
 authors = ["Saphielle Akiyama <saphielle.akiyama@gmail.com>", "Bijij <josh@josh-is.gay>"]
 edition = "2018"
