@@ -29,9 +29,10 @@ fn read_dirs_to_entry(read_dir: fs::ReadDir) -> (Vec<filetype::Entry>, Vec<io::E
 }
 
 fn get_column_length(entries: &Vec<filetype::Entry>, num_columns: usize, column: usize) -> usize {
+    let num_rows = entries.len()/num_columns + 1;
     let mut column_length: usize = 0;
     
-    for entry in entries.iter().skip(entries.len()/num_columns * column).take(entries.len()/num_columns) {
+    for entry in entries.iter().skip(num_rows * column).take(num_rows) {
         column_length = cmp::max(column_length, entry.name.len());
     }
 
@@ -67,9 +68,14 @@ fn show_entries(entries: Vec<filetype::Entry>,
                   config: &parser::Config, 
                   column_sizes: Vec<usize>) {
 
-    for index in 0..entries.len()/column_sizes.len() {
+    let num_columns = column_sizes.len();
+    let num_rows = entries.len()/num_columns + 1;
 
-        for (entry, column_size) in entries.iter().skip(index).step_by(entries.len()/column_sizes.len()).zip(column_sizes.iter()) {
+    //println!("cols={}, rows={}", num_columns, num_rows);
+
+    for index in 0..num_rows {
+
+        for (entry, column_size) in entries.iter().skip(index).step_by(num_rows).zip(column_sizes.iter()) {
 
             let formatted_name: ffi::OsString = entry.get_formatted_name(config);
             
@@ -95,7 +101,7 @@ pub fn read_dir(config: &parser::Config, read_dir: fs::ReadDir) {
     let (entries, errors): (Vec<filetype::Entry>, Vec<io::Error>) = read_dirs_to_entry(read_dir);
     let column_lengths = get_column_lengths(&entries);
 
-    //println!("{:?}", column_lengths);
+    //println!("entries={}, cols={:?}", entries.len(), column_lengths);
     show_entries(entries, config, column_lengths);
     
     for error in errors {
