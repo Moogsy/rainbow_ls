@@ -9,6 +9,7 @@ use super::filetype;
 use crate::parser;
 
 const SEP: &str = " ";
+const SEP_LEN: usize = SEP.len();
 
 fn read_dirs_to_entry(read_dir: fs::ReadDir) -> (Vec<filetype::Entry>, Vec<io::Error>) {
     let mut errors: Vec<io::Error> = Vec::new();
@@ -29,7 +30,7 @@ fn read_dirs_to_entry(read_dir: fs::ReadDir) -> (Vec<filetype::Entry>, Vec<io::E
 }
 
 fn get_column_length(entries: &Vec<filetype::Entry>, num_columns: usize, column: usize) -> usize {
-    let num_rows = entries.len()/num_columns + 1;
+    let num_rows: usize = entries.len() / num_columns + 1;
     let mut column_length: usize = 0;
     
     for entry in entries.iter().skip(num_rows * column).take(num_rows) {
@@ -49,8 +50,11 @@ fn get_column_lengths(entries: &Vec<filetype::Entry>) -> Vec<usize> {
             for column in 0..index {
                 lengths.push(get_column_length(&entries, index, column));
             }
+
+            let length_sum: usize = lengths.iter().sum();
+            let total_sep_length: usize = SEP_LEN * (lengths.len() - 1);
  
-            if lengths.iter().sum::<usize>() + SEP.len() * (lengths.len() - 1)  <= width && lengths.len() > best.len() {
+            if length_sum + total_sep_length <= width && lengths.len() > best.len() {
                 best = lengths;
             }
 
@@ -59,8 +63,7 @@ fn get_column_lengths(entries: &Vec<filetype::Entry>) -> Vec<usize> {
         eprintln!("Failed to get current term's size");
         best.push(get_column_length(&entries, 1, 0));
     }
-
-    return best;
+    best
 }
 
 #[allow(unused_variables)]
