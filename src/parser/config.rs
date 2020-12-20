@@ -1,9 +1,9 @@
-use std::path;
-use std::fs;
+use std::path::PathBuf;
+use std::fs::ReadDir;
 use std::process;
 use term_size;
 
-use super::subparsers;
+use super::subparsers::{self, SortBy};
 use super::help;
 
 #[derive(Debug)]
@@ -15,16 +15,15 @@ pub struct Config {
     pub unknowns: Vec<u8>,
 
     pub min_rgb_sum: u16,
-    pub sort_by: subparsers::SortBy,
+    pub sort_by: SortBy,
 
     pub separator: String,
     pub padding: char,
 
-
-
     // Flags
     pub show_dotfiles: bool,
     pub reverse_file_order: bool,
+    pub group_directories_first: bool,
     
     // Auto-generated
     pub term_width: usize,
@@ -42,7 +41,7 @@ impl Default for Config {
                 unknowns: vec![1, 4],
 
                 min_rgb_sum: 512,
-                sort_by: subparsers::SortBy::Name,
+                sort_by: SortBy::Name,
 
                 separator: String::from("  "),
                 padding: ' ',
@@ -50,6 +49,7 @@ impl Default for Config {
                 // Flags
                 show_dotfiles: false,
                 reverse_file_order: false,
+                group_directories_first: true,
 
                 // Auto generated
                 term_width: width,
@@ -63,8 +63,8 @@ impl Default for Config {
 
 #[derive(Debug, Default)]
 pub struct PassedFiles {
-    pub ok_dirs: Vec<fs::ReadDir>,
-    pub err_dirs: Vec<path::PathBuf>,
+    pub ok_dirs: Vec<ReadDir>,
+    pub err_dirs: Vec<PathBuf>,
 }
 
 fn dispatch_bool_arg(d_config: &mut Config, arg: &String) -> Result<(), ()> {
@@ -78,6 +78,9 @@ fn dispatch_bool_arg(d_config: &mut Config, arg: &String) -> Result<(), ()> {
         },
         "-r" | "--reverse" => {
             d_config.reverse_file_order = true;
+        },
+        "-dgdr" | "--dont-group-directories-first" => {
+            d_config.group_directories_first = false;
         },
         _ => {
             return Err(());
@@ -162,11 +165,9 @@ pub fn get_user_input<T>(string_iter: T) -> (Config, PassedFiles)
 where T: Iterator<Item = String> {
     let (config, untreated_args): (Config, Vec<String>) = generate_config(string_iter);
 
-    let (ok_dirs, err_dirs): (Vec<fs::ReadDir>, Vec<path::PathBuf>) = subparsers::dispatch_untreated_args(untreated_args);
+    let (ok_dirs, err_dirs): (Vec<ReadDir>, Vec<PathBuf>) = subparsers::dispatch_untreated_args(untreated_args);
 
     let passed_files: PassedFiles = PassedFiles {ok_dirs, err_dirs};
-
-    println!("{:?}", config);
 
     (config, passed_files)
 }

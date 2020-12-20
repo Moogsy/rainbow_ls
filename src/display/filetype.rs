@@ -1,7 +1,7 @@
-use std::ffi;
-use std::cmp;
-use std::fs;
-use std::time;
+use std::ffi::OsString;
+use std::cmp::Ordering;
+use std::fs::DirEntry;
+use std::time::SystemTime;
 
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -18,19 +18,19 @@ pub enum Kind {
 #[derive(Debug)]
 pub struct Entry {
     // Name related stuff
-    pub name: ffi::OsString,
-    pub formatted_name: ffi::OsString,
+    pub name: OsString,
+    pub formatted_name: OsString,
     len: usize,
-    pub extension: Option<ffi::OsString>,
+    pub extension: Option<OsString>,
 
     // File_type
     pub kind: Kind,
 
     // Metadata
     pub size: Option<usize>,
-    pub created_at: Option<time::SystemTime>,
-    pub edited_at: Option<time::SystemTime>,
-    pub accessed_at: Option<time::SystemTime>,
+    pub created_at: Option<SystemTime>,
+    pub edited_at: Option<SystemTime>,
+    pub accessed_at: Option<SystemTime>,
 }
 
 struct RgbColor {
@@ -88,7 +88,7 @@ impl RgbColor {
 }
 
 impl Entry {
-    fn determine_kind(lossy_name: &str, dir_entry: &fs::DirEntry) -> Kind {
+    fn determine_kind(lossy_name: &str, dir_entry: &DirEntry) -> Kind {
         if let Ok(file_type) = dir_entry.file_type() {
             
             if file_type.is_file() {
@@ -107,18 +107,18 @@ impl Entry {
         }
     }
 
-    fn format_filename(formatted_name: &mut ffi::OsString, codes: &Vec<u8>) {
+    fn format_filename(formatted_name: &mut OsString, codes: &Vec<u8>) {
         for code in codes {
             let code_str: String = format!("\x1b[{}m", code);
-            let to_push: ffi::OsString = ffi::OsString::from(code_str);
+            let to_push: OsString = OsString::from(code_str);
             formatted_name.push(to_push);
         }
     }
 
 
-    fn determine_formatted_name(config: &parser::Config, name: &ffi::OsString, kind: &Kind, color: &mut RgbColor) -> ffi::OsString {
+    fn determine_formatted_name(config: &parser::Config, name: &OsString, kind: &Kind, color: &mut RgbColor) -> OsString {
         let starting_seq: String = format!("\x1B[38;2;{};{};{}m", color.red, color.green, color.blue);
-        let mut formatted_name: ffi::OsString = ffi::OsString::from(starting_seq);
+        let mut formatted_name: OsString = OsString::from(starting_seq);
 
         match kind {
             Kind::File(_) => Self::format_filename(&mut formatted_name, &config.files),
@@ -133,7 +133,7 @@ impl Entry {
         formatted_name
 
     }
-    fn determine_extension(dir_entry: &fs::DirEntry) -> Option<ffi::OsString> {
+    fn determine_extension(dir_entry: &DirEntry) -> Option<OsString> {
         if let Some(ext) = dir_entry.path().extension() {
             Some(ext.to_os_string())
         } else {
@@ -141,7 +141,7 @@ impl Entry {
         }
     }
 
-    fn make_colors(lossy_name: &str, extension: &Option<ffi::OsString>) -> RgbColor {
+    fn make_colors(lossy_name: &str, extension: &Option<OsString>) -> RgbColor {
         let mut prod: u32 = 11;
 
         if let Some(ext) = extension {
@@ -169,19 +169,19 @@ impl Entry {
         self.len
     }
 
-    pub fn new(config: &parser::Config, name: ffi::OsString, dir_entry: fs::DirEntry) -> Self {
+    pub fn new(config: &parser::Config, name: OsString, dir_entry: DirEntry) -> Self {
         let lossy_name: &str = &name.to_string_lossy();
 
-        let extension: Option<ffi::OsString> = Self::determine_extension(&dir_entry);
+        let extension: Option<OsString> = Self::determine_extension(&dir_entry);
         let kind: Kind = Self::determine_kind(lossy_name, &dir_entry);
 
         let mut color: RgbColor = Self::make_colors(lossy_name, &extension);
         color.pad_lowest(config.min_rgb_sum);
 
 
-        let mut created_at: Option<time::SystemTime> = None;
-        let mut edited_at: Option<time::SystemTime> = None;
-        let mut accessed_at: Option<time::SystemTime> = None;
+        let mut created_at: Option<SystemTime> = None;
+        let mut edited_at: Option<SystemTime> = None;
+        let mut accessed_at: Option<SystemTime> = None;
         let mut size: Option<usize> = None;
 
         if let Ok(metadata) = dir_entry.metadata() {
@@ -215,13 +215,13 @@ impl PartialEq for Entry {
 }
 
 impl PartialOrd for Entry {
-    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for Entry {
-    fn cmp(&self, other: &Self) -> cmp::Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         (&self.kind, &self.extension, &self.name).cmp(&(&other.kind, &other.extension, &other.name))
     }
 }

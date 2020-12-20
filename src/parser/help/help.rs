@@ -57,8 +57,7 @@ Note: does not display implied "." and ".." folders.
 -r | --reverse (default=false)
 Reverse the order of files when sorting.
 
-
-
-
+-dgdf | --dont-group-directories-first (default=true)
+Groups directories together before sorting them.
 
 "#;

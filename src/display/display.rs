@@ -1,30 +1,26 @@
-use std::slice;
-use std::borrow;
-use std::ffi;
-use std::io;
-use std::fs;
-use std::iter;
+use std::borrow::Cow;
+use std::ffi::OsString;
+use std::io::Error;
+use std::fs::ReadDir;
 
-use super::filetype;
-use crate::parser;
+use std::slice::Iter;
+use std::iter::{Take, Skip, Enumerate, StepBy, Zip};
+
+use super::filetype::Entry;
+use crate::parser::Config;
+use super::sort_by;
+
 
 // Memes
-type EntryDisplayIterator<'a> = iter::Take<iter::Skip<slice::Iter<'a, filetype::Entry>>>;
-type ColumnDisplayIterator<'a> = 
-iter::Enumerate<iter::Zip<iter::StepBy<iter::Skip<slice::Iter<'a, filetype::Entry>>>, slice::Iter<'a, usize>>>;
+type EntryDisplayIterator<'a> = Take<Skip<Iter<'a, Entry>>>;
+type ColumnDisplayIterator<'a> = Enumerate<Zip<StepBy<Skip<Iter<'a, Entry>>>, Iter<'a, usize>>>;
 
-fn handle_sorting_flags(config: &parser::Config, mut entries: Vec<filetype::Entry>) -> Vec<filetype::Entry> {
-    match config.sort_by {
-        parser::SortBy::Name => entries.sort_unstable(),
-        parser::SortBy::Size => entries.sort_unstable_by_key(|entry| entry.size),
-        parser::SortBy::CreationDate => entries.sort_unstable_by_key(|entry| entry.created_at),
-        parser::SortBy::AccessDate => entries.sort_unstable_by_key(|entry| entry.accessed_at),
-        parser::SortBy::ModificationDate => entries.sort_unstable_by_key(|entry| entry.edited_at),
-        parser::SortBy::Extension => {
-            entries.sort(); // Expensive way to avoid conflicts
-            entries.sort_by_key(|entry| entry.extension.clone())
-        }
-    }
+fn handle_sorting_flags(config: &Config, mut entries: Vec<Entry>) -> Vec<Entry> {
+    if config.group_directories_first {
+        entries = sort_by::groupdirs(config, entries);
+    } else {
+        entries = sort_by::default(config, entries);
+    };
 
     if config.reverse_file_order {
         entries.reverse()
@@ -35,9 +31,9 @@ fn handle_sorting_flags(config: &parser::Config, mut entries: Vec<filetype::Entr
 
 
 
-fn read_dirs_to_entry(config: &parser::Config, read_dir: fs::ReadDir) -> (Vec<filetype::Entry>, Vec<io::Error>, usize) {
-    let mut errors: Vec<io::Error> = Vec::new();
-    let mut entries: Vec<filetype::Entry> = Vec::new();
+fn read_dirs_to_entry(config: &Config, read_dir: ReadDir) -> (Vec<Entry>, Vec<Error>, usize) {
+    let mut errors: Vec<Error> = Vec::new();
+    let mut entries: Vec<Entry> = Vec::new();
     let mut total_length: usize = 0;
 
     for read_dir_entry in read_dir.into_iter() {
@@ -45,15 +41,15 @@ fn read_dirs_to_entry(config: &parser::Config, read_dir: fs::ReadDir) -> (Vec<fi
         match read_dir_entry {
             Ok(dir_entry) => {
 
-                let name: ffi::OsString = dir_entry.file_name();
+                let name: OsString = dir_entry.file_name();
 
                 if config.show_dotfiles {
-                    let entry: filetype::Entry = filetype::Entry::new(config, name, dir_entry);
+                    let entry: Entry = Entry::new(config, name, dir_entry);
                     total_length += entry.len() + config.separator.len();
                     entries.push(entry);
 
                 } else if !name.to_string_lossy().starts_with(".") {
-                    let entry: filetype::Entry = filetype::Entry::new(config, name, dir_entry);
+                    let entry: Entry = Entry::new(config, name, dir_entry);
                     total_length += entry.len() + config.separator.len();
                     entries.push(entry);
                 }
@@ -67,7 +63,7 @@ fn read_dirs_to_entry(config: &parser::Config, read_dir: fs::ReadDir) -> (Vec<fi
     (entries, errors, total_length)
 }
 
-fn get_column_length(entries: &Vec<filetype::Entry>, num_columns: usize, column: usize) -> usize {
+fn get_column_length(entries: &Vec<Entry>, num_columns: usize, column: usize) -> usize {
     let num_rows: usize = (entries.len() / num_columns) + 1;
     let mut column_length: usize = 0;
     
@@ -80,7 +76,7 @@ fn get_column_length(entries: &Vec<filetype::Entry>, num_columns: usize, column:
     column_length
 }
 
-fn get_column_lengths(config: &parser::Config, entries: &Vec<filetype::Entry>) -> Vec<usize> {
+fn get_column_lengths(config: &Config, entries: &Vec<Entry>) -> Vec<usize> {
     let mut best_column_lengths: Vec<usize> = Vec::new();
 
     // This can likely be optimized, 
@@ -105,8 +101,8 @@ fn get_column_lengths(config: &parser::Config, entries: &Vec<filetype::Entry>) -
     best_column_lengths
 }
 
-fn show_multiline(entries: Vec<filetype::Entry>, 
-                  config: &parser::Config, 
+fn show_multiline(entries: Vec<Entry>, 
+                  config: &Config, 
                   column_sizes: Vec<usize>) {
 
     let num_columns: usize = column_sizes.len();
@@ -125,7 +121,7 @@ fn show_multiline(entries: Vec<filetype::Entry>,
 
     for (inner_index, (entry, column_size)) in column_display_iterator {
 
-        let lossy_name: borrow::Cow<str> = entry.formatted_name.to_string_lossy();
+        let lossy_name: Cow<str> = entry.formatted_name.to_string_lossy();
         print!("{}", lossy_name);
 
         let diff: usize = column_size - entry.len();
@@ -143,8 +139,8 @@ fn show_multiline(entries: Vec<filetype::Entry>,
 }
 
 /// Pretty prints out read_dirs 
-pub fn read_dir(config: &parser::Config, read_dir: fs::ReadDir) {
-    let (entries, errors, total_length): (Vec<filetype::Entry>, Vec<io::Error>, usize) = read_dirs_to_entry(config, read_dir);
+pub fn read_dir(config: &Config, read_dir: ReadDir) {
+    let (entries, errors, total_length): (Vec<Entry>, Vec<Error>, usize) = read_dirs_to_entry(config, read_dir);
     
     if total_length <= config.term_width {
         for entry in entries.iter().take(entries.len().max(1) - 1) {
