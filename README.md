@@ -2,7 +2,7 @@
 ls, but with more colors
 
 TODO:
-  - Add some kind of way to highlight executables
+  - Add some more random options so everyone is happy
 
 Some screenshots before colors are cool:
 
