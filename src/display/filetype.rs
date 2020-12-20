@@ -1,4 +1,3 @@
-use std::alloc::System;
 use std::ffi;
 use std::cmp;
 use std::fs;
@@ -9,7 +8,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use crate::parser;
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
-enum Kind {
+pub enum Kind {
     Directory,
     File(bool), // is_dotfile
     Symlink,
@@ -22,13 +21,16 @@ pub struct Entry {
     pub name: ffi::OsString,
     pub formatted_name: ffi::OsString,
     len: usize,
-    extension: Option<ffi::OsString>,
+    pub extension: Option<ffi::OsString>,
+
+    // File_type
+    pub kind: Kind,
 
     // Metadata
-    kind: Kind,
-    created_at: Option<time::SystemTime>,
-    edited_at: Option<time::SystemTime>,
-    accessed_at: Option<time::SystemTime>,
+    pub size: Option<usize>,
+    pub created_at: Option<time::SystemTime>,
+    pub edited_at: Option<time::SystemTime>,
+    pub accessed_at: Option<time::SystemTime>,
 }
 
 struct RgbColor {
@@ -163,22 +165,6 @@ impl Entry {
         }
     }
 
-    fn determine_time_data(dir_entry: &fs::DirEntry) -> [Option<time::SystemTime>; 3] {
-
-        let mut ret: [Option<time::SystemTime>; 3] = [None, None, None];
-
-        if let Ok(metadata) = dir_entry.metadata() {
-
-            ret = [
-                metadata.created().ok(),
-                metadata.modified().ok(),
-                metadata.accessed().ok(),
-            ]
-        }
-
-        ret
-    }
-
     pub fn len(&self) -> usize {
         self.len
     }
@@ -192,7 +178,18 @@ impl Entry {
         let mut color: RgbColor = Self::make_colors(lossy_name, &extension);
         color.pad_lowest(config.min_rgb_sum);
 
-        let [created_at, edited_at, accessed_at] = Self::determine_time_data(&dir_entry);
+
+        let mut created_at: Option<time::SystemTime> = None;
+        let mut edited_at: Option<time::SystemTime> = None;
+        let mut accessed_at: Option<time::SystemTime> = None;
+        let mut size: Option<usize> = None;
+
+        if let Ok(metadata) = dir_entry.metadata() {
+            created_at = metadata.created().ok();
+            edited_at = metadata.modified().ok();
+            accessed_at = metadata.accessed().ok();
+            size = Some(metadata.len() as usize);
+        }
 
         Self {
             // Name related stuff (odd order due to borrows)
@@ -206,6 +203,7 @@ impl Entry {
             created_at,
             edited_at,
             accessed_at,
+            size,
         }
     }
 }

@@ -8,14 +8,23 @@ use std::iter;
 use super::filetype;
 use crate::parser;
 
-
 // Memes
 type EntryDisplayIterator<'a> = iter::Take<iter::Skip<slice::Iter<'a, filetype::Entry>>>;
 type ColumnDisplayIterator<'a> = 
 iter::Enumerate<iter::Zip<iter::StepBy<iter::Skip<slice::Iter<'a, filetype::Entry>>>, slice::Iter<'a, usize>>>;
 
 fn handle_sorting_flags(config: &parser::Config, mut entries: Vec<filetype::Entry>) -> Vec<filetype::Entry> {
-    entries.sort();
+    match config.sort_by {
+        parser::SortBy::Name => entries.sort_unstable(),
+        parser::SortBy::Size => entries.sort_unstable_by_key(|entry| entry.size),
+        parser::SortBy::CreationDate => entries.sort_unstable_by_key(|entry| entry.created_at),
+        parser::SortBy::AccessDate => entries.sort_unstable_by_key(|entry| entry.accessed_at),
+        parser::SortBy::ModificationDate => entries.sort_unstable_by_key(|entry| entry.edited_at),
+        parser::SortBy::Extension => {
+            entries.sort(); // Expensive way to avoid conflicts
+            entries.sort_by_key(|entry| entry.extension.clone())
+        }
+    }
 
     if config.reverse_file_order {
         entries.reverse()

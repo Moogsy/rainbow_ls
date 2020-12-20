@@ -1,2 +1,2 @@
 mod help;
-pub use help::TXT;
+pub use help::*;

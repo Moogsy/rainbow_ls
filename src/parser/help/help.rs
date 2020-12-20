@@ -36,11 +36,15 @@ Specifies which padding char will be used to align filenames inside columns
 --sort [word] (default=name)
 Sort by word instead of name.
 Where word is one of:
-    size
+    name
+    size 
     extension
     creation_date
     access_date
     modification_date
+
+Note: Everything is sorted in ascending order, use the -r 
+flag to sort by desc.
 
 #########
 # Flags #

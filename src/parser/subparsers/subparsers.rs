@@ -5,6 +5,15 @@ use std::process;
 use std::fs;
 
 const VALID_ESCAPE_DIGITS: [u8; 8] = [0, 1, 2, 3, 4, 5, 7, 8];
+#[derive(Debug)]
+pub enum SortBy {
+    Name,
+    Size,
+    Extension,
+    CreationDate,
+    AccessDate,
+    ModificationDate,
+}
 
 /// Tries to parse the escape digits
 /// Panics if it fails to do so or if an invalid digit was passed
@@ -66,6 +75,27 @@ pub fn padding(curr_config: &mut char, right_arg: String) {
         eprintln!("Padding must consist of a single char, got: {}", right_arg);
         process::exit(1);
     }
+}
+
+pub fn sort_by(curr_config: &mut SortBy, right_arg: String) {
+    let sort_by: SortBy = {
+        match right_arg.to_lowercase().as_str() {
+            "name" => SortBy::Name,
+            "size" => SortBy::Size,
+            "extension" => SortBy::Extension,
+            "creation_date" => SortBy::CreationDate,
+            "access_date" => SortBy::AccessDate,
+            "modification_date" => SortBy::ModificationDate,
+            unknown => {
+                eprintln!("Unrecognized sort argument {}", unknown);
+                eprint!("Valid ones are: [name, size, extension, ");
+                eprintln!("creation_date, access_date, modification_date].");
+
+                process::exit(1);
+            }
+        }
+    };
+    *curr_config = sort_by;
 }
 
 pub fn consume_rest<T>(untreated_args: &mut Vec<String>, args_iterator: T)

@@ -7,16 +7,6 @@ use super::subparsers;
 use super::help;
 
 #[derive(Debug)]
-pub enum SortBy {
-    Name,
-    Size,
-    Extension,
-    CreationDate,
-    AccessDate,
-    ModificationDate,
-}
-
-#[derive(Debug)]
 pub struct Config {
     // Kwargs
     pub files: Vec<u8>,
@@ -25,7 +15,7 @@ pub struct Config {
     pub unknowns: Vec<u8>,
 
     pub min_rgb_sum: u16,
-    pub sort_by: SortBy,
+    pub sort_by: subparsers::SortBy,
 
     pub separator: String,
     pub padding: char,
@@ -52,12 +42,10 @@ impl Default for Config {
                 unknowns: vec![1, 4],
 
                 min_rgb_sum: 512,
-                sort_by: SortBy::Name,
+                sort_by: subparsers::SortBy::Name,
 
                 separator: String::from("  "),
                 padding: ' ',
-
-
                 
                 // Flags
                 show_dotfiles: false,
@@ -127,6 +115,9 @@ where T: Iterator<Item = String> {
         "--padding" => {
             subparsers::padding(&mut d_config.padding, right_arg);
         },
+        "--sort-by" => {
+            subparsers::sort_by(&mut d_config.sort_by, right_arg);
+        },
         "--" => {
             untreated_args.push(right_arg);
             subparsers::consume_rest(untreated_args,  args_iter)
@@ -174,6 +165,8 @@ where T: Iterator<Item = String> {
     let (ok_dirs, err_dirs): (Vec<fs::ReadDir>, Vec<path::PathBuf>) = subparsers::dispatch_untreated_args(untreated_args);
 
     let passed_files: PassedFiles = PassedFiles {ok_dirs, err_dirs};
+
+    println!("{:?}", config);
 
     (config, passed_files)
 }
