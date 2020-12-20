@@ -1,6 +1,8 @@
+use std::alloc::System;
 use std::ffi;
 use std::cmp;
 use std::fs;
+use std::time;
 
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -16,12 +18,17 @@ enum Kind {
 
 #[derive(Debug)]
 pub struct Entry {
+    // Name related stuff
     pub name: ffi::OsString,
     pub formatted_name: ffi::OsString,
-
     len: usize,
     extension: Option<ffi::OsString>,
+
+    // Metadata
     kind: Kind,
+    created_at: Option<time::SystemTime>,
+    edited_at: Option<time::SystemTime>,
+    accessed_at: Option<time::SystemTime>,
 }
 
 struct RgbColor {
@@ -79,10 +86,11 @@ impl RgbColor {
 }
 
 impl Entry {
-    fn determine_kind(name: &str, dir_entry: &fs::DirEntry) -> Kind {
+    fn determine_kind(lossy_name: &str, dir_entry: &fs::DirEntry) -> Kind {
         if let Ok(file_type) = dir_entry.file_type() {
+            
             if file_type.is_file() {
-                if name.starts_with(".") {
+                if lossy_name.starts_with(".") {
                     Kind::File(true)
                 } else {
                     Kind::File(false)
@@ -97,13 +105,6 @@ impl Entry {
         }
     }
 
-    fn determine_len(config: &parser::Config, name: &ffi::OsString) -> usize {
-        if config.read_graphemes {
-            name.to_string_lossy().graphemes(true).count()
-        } else {
-            name.len()
-        }
-    }
     fn format_filename(formatted_name: &mut ffi::OsString, codes: &Vec<u8>) {
         for code in codes {
             let code_str: String = format!("\x1b[{}m", code);
@@ -138,7 +139,7 @@ impl Entry {
         }
     }
 
-    fn make_colors(name: &ffi::OsString, extension: &Option<ffi::OsString>) -> RgbColor {
+    fn make_colors(lossy_name: &str, extension: &Option<ffi::OsString>) -> RgbColor {
         let mut prod: u32 = 11;
 
         if let Some(ext) = extension {
@@ -146,7 +147,7 @@ impl Entry {
                 prod = prod.wrapping_mul(byte as u32);
             }
         } else {
-            for byte in name.to_string_lossy().bytes() {
+            for byte in lossy_name.bytes() {
                 prod = prod.wrapping_mul(byte as u32);
             }
         }
@@ -162,24 +163,49 @@ impl Entry {
         }
     }
 
+    fn determine_time_data(dir_entry: &fs::DirEntry) -> [Option<time::SystemTime>; 3] {
+
+        let mut ret: [Option<time::SystemTime>; 3] = [None, None, None];
+
+        if let Ok(metadata) = dir_entry.metadata() {
+
+            ret = [
+                metadata.created().ok(),
+                metadata.modified().ok(),
+                metadata.accessed().ok(),
+            ]
+        }
+
+        ret
+    }
+
     pub fn len(&self) -> usize {
         self.len
     }
 
-
     pub fn new(config: &parser::Config, name: ffi::OsString, dir_entry: fs::DirEntry) -> Self {
-        let kind: Kind = Self::determine_kind(&name.to_string_lossy(), &dir_entry);
+        let lossy_name: &str = &name.to_string_lossy();
+
         let extension: Option<ffi::OsString> = Self::determine_extension(&dir_entry);
-        let len: usize = Self::determine_len(config, &name);
-        let mut color: RgbColor = Self::make_colors(&name, &extension);
+        let kind: Kind = Self::determine_kind(lossy_name, &dir_entry);
+
+        let mut color: RgbColor = Self::make_colors(lossy_name, &extension);
         color.pad_lowest(config.min_rgb_sum);
 
+        let [created_at, edited_at, accessed_at] = Self::determine_time_data(&dir_entry);
+
         Self {
+            // Name related stuff (odd order due to borrows)
             formatted_name: Self::determine_formatted_name(config, &name, &kind, &mut color),
-            len,
             extension,
-            kind,
+            len: lossy_name.graphemes(true).count(),
             name,
+
+            // Metadata 
+            kind,
+            created_at,
+            edited_at,
+            accessed_at,
         }
     }
 }

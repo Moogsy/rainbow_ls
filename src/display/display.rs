@@ -9,7 +9,21 @@ use super::filetype;
 use crate::parser;
 
 
+// Memes
 type EntryDisplayIterator<'a> = iter::Take<iter::Skip<slice::Iter<'a, filetype::Entry>>>;
+type ColumnDisplayIterator<'a> = 
+iter::Enumerate<iter::Zip<iter::StepBy<iter::Skip<slice::Iter<'a, filetype::Entry>>>, slice::Iter<'a, usize>>>;
+
+fn handle_sorting_flags(config: &parser::Config, mut entries: Vec<filetype::Entry>) -> Vec<filetype::Entry> {
+    entries.sort();
+
+    if config.reverse_file_order {
+        entries.reverse()
+    } 
+
+    entries
+}
+
 
 
 fn read_dirs_to_entry(config: &parser::Config, read_dir: fs::ReadDir) -> (Vec<filetype::Entry>, Vec<io::Error>, usize) {
@@ -38,7 +52,8 @@ fn read_dirs_to_entry(config: &parser::Config, read_dir: fs::ReadDir) -> (Vec<fi
             Err(error) => errors.push(error),
         }
     }
-    entries.sort();
+
+    entries = handle_sorting_flags(config, entries);
 
     (entries, errors, total_length)
 }
@@ -90,7 +105,7 @@ fn show_multiline(entries: Vec<filetype::Entry>,
 
     for index in 0..num_rows {
 
-    let column_display_iterator = entries
+    let column_display_iterator: ColumnDisplayIterator = entries
         .iter()
         .skip(index)
         .step_by(num_rows)
@@ -104,7 +119,8 @@ fn show_multiline(entries: Vec<filetype::Entry>,
         let lossy_name: borrow::Cow<str> = entry.formatted_name.to_string_lossy();
         print!("{}", lossy_name);
 
-        for _ in 0..(column_size - entry.len()) { 
+        let diff: usize = column_size - entry.len();
+        for _ in 0..diff { 
             print!("{}", config.padding);
         }
 

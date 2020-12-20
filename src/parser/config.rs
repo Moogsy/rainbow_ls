@@ -6,21 +6,35 @@ use term_size;
 use super::subparsers;
 use super::help;
 
+#[derive(Debug)]
+pub enum SortBy {
+    Name,
+    Size,
+    Extension,
+    CreationDate,
+    AccessDate,
+    ModificationDate,
+}
 
 #[derive(Debug)]
 pub struct Config {
-    // Chosen by the user
+    // Kwargs
     pub files: Vec<u8>,
     pub directories: Vec<u8>,
     pub symlinks: Vec<u8>,
     pub unknowns: Vec<u8>,
 
     pub min_rgb_sum: u16,
+    pub sort_by: SortBy,
+
     pub separator: String,
     pub padding: char,
 
-    pub read_graphemes: bool,
+
+
+    // Flags
     pub show_dotfiles: bool,
+    pub reverse_file_order: bool,
     
     // Auto-generated
     pub term_width: usize,
@@ -31,16 +45,26 @@ impl Default for Config {
     fn default() -> Self {
         if let Some((width, _)) = term_size::dimensions() {
             Self {
+                // Kwargs
                 files: vec![1],
                 directories: vec![1, 7],
                 symlinks: vec![1, 3],
                 unknowns: vec![1, 4],
+
                 min_rgb_sum: 512,
-                term_width: width,
+                sort_by: SortBy::Name,
+
                 separator: String::from("  "),
                 padding: ' ',
-                read_graphemes: true,
+
+
+                
+                // Flags
                 show_dotfiles: false,
+                reverse_file_order: false,
+
+                // Auto generated
+                term_width: width,
             }
         } else {
             eprintln!("Failed to get term's width");
@@ -53,6 +77,25 @@ impl Default for Config {
 pub struct PassedFiles {
     pub ok_dirs: Vec<fs::ReadDir>,
     pub err_dirs: Vec<path::PathBuf>,
+}
+
+fn dispatch_bool_arg(d_config: &mut Config, arg: &String) -> Result<(), ()> {
+    match arg.as_str() {
+        "--help" => {
+            println!("{}", help::TXT);
+            process::exit(0);
+        },
+        "--show-dotfiles" | "--all" | "-a" => {
+            d_config.show_dotfiles = true;
+        },
+        "-r" | "--reverse" => {
+            d_config.reverse_file_order = true;
+        },
+        _ => {
+            return Err(());
+        },
+    }
+    Ok(())
 }
 
 fn dispatch_keyword_arg<T>(d_config: &mut Config, 
@@ -84,12 +127,6 @@ where T: Iterator<Item = String> {
         "--padding" => {
             subparsers::padding(&mut d_config.padding, right_arg);
         },
-        "--read-graphemes" => {
-            subparsers::bool_converter(&mut d_config.read_graphemes, right_arg);
-        },
-        "--show-dotfiles" => {
-            subparsers::bool_converter(&mut d_config.show_dotfiles, right_arg);
-        },
         "--" => {
             untreated_args.push(right_arg);
             subparsers::consume_rest(untreated_args,  args_iter)
@@ -108,13 +145,16 @@ where T: Iterator<Item = String> {
     let mut untreated_args: Vec<String> = Vec::new();
 
     while let Some(left_arg) = args_iter.next() {
-        if !left_arg.starts_with("--") {
+
+        // Likely a file / dir path
+        if !left_arg.starts_with("-") {
             untreated_args.push(left_arg);
             continue;
         }
-        if left_arg == "--help" {
-            println!("{}", help::TXT);
-            process::exit(0);
+
+        // Skip if the arg is self sufficient
+        if dispatch_bool_arg(&mut d_config, &left_arg).is_ok() {
+            continue;
         }
         
         if let Some(right_arg) = args_iter.next() {

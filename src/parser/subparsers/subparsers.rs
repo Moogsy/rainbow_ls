@@ -6,9 +6,6 @@ use std::fs;
 
 const VALID_ESCAPE_DIGITS: [u8; 8] = [0, 1, 2, 3, 4, 5, 7, 8];
 
-const TRUTHY_WORDS: [&str; 7] = ["yes", "y", "true", "t", "1", "enable", "on"];
-const FALSY_WORDS: [&str; 7] = ["no", "n", "false", "f", "0", "disable", "off"];
-
 /// Tries to parse the escape digits
 /// Panics if it fails to do so or if an invalid digit was passed
 pub fn formatting_args(curr_config: &mut Vec<u8>, right_arg: String) {
@@ -52,26 +49,6 @@ pub fn minimal_sum(curr_config: &mut u16, right_arg: String) {
     } else {
         *curr_config = min_sum;
     }
-}
-
-pub fn bool_converter(curr_config: &mut bool, right_arg: String) {
-    let right_arg_str: &&str = &right_arg.as_str();
-
-    if TRUTHY_WORDS.contains(right_arg_str) {
-        *curr_config = true;
-
-    } else if FALSY_WORDS.contains(right_arg_str) {
-        *curr_config = false;
-
-    } else {
-        eprintln!("Expected an argument contained in: \n[{}] or \n[{}], got {}", 
-                 TRUTHY_WORDS.join(","), 
-                 FALSY_WORDS.join(","),
-                 right_arg_str
-        );
-        process::exit(1);
-    }
-
 }
 
 pub fn padding(curr_config: &mut char, right_arg: String) {
@@ -126,14 +103,23 @@ pub fn dispatch_untreated_args(untreated_args: Vec<String>) -> (Vec<fs::ReadDir>
         }
     }
 
-    if ok_dirs.is_empty() && err_dirs.is_empty() {
-        if let Ok(curr_dir) = env::current_dir() {
-            check_final_pathbuf(curr_dir, &mut ok_dirs);
+    if ok_dirs.is_empty() {
+        if err_dirs.is_empty() {
+
+            if let Ok(curr_dir) = env::current_dir() {
+                check_final_pathbuf(curr_dir, &mut ok_dirs);
+            } else {
+                eprintln!("No directories were found, and couldn't reat the current one either.");
+                process::exit(1);
+            }
+
         } else {
-            eprintln!("No directories were found, and couldn't reat the current one either.");
+            let plural: &str = if err_dirs.len() > 1 {"ies"} else {"y"};
+            println!("Couldn't read director{}: {:?}", plural, err_dirs);
             process::exit(1);
         }
     }
+    
     (ok_dirs, err_dirs)
 }
 

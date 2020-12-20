@@ -1,8 +1,6 @@
 pub const TXT: &str = r#"
-##########################
-# Per entry type control #
-##########################
 
+######################################################
 --files [codes] (default=1)
 --directories [codes] (default=17)
 --symlinks [codes] (default=13)
@@ -19,47 +17,44 @@ Where codes is one or more of:
     8 - Invisible
  
 Specify some formatting code to use for an entry type.
+######################################################
 
-Examples:
-    --files 1   // file is bold
-    --files 12  // file is bold and dim
-    --files 1 --dir 2 // file is bold, dir is dim
+##########
+# Kwargs #
+##########
 
-#################
-# Color control #
-#################
-
---sum [lowest_sum] (default=512)
+--sum [minimal_sum] (default=512)
 Specifies the minimal sum of the red, green and blue
 components of the colors. Cannot be over 765 (255 * 3).
-
-Examples:
-    --sum 512 // This will be bright
-    --sum 100 // This will have a wide range, from very dark to very bright
-
-##############
-# Separators #
-##############
 
 --separator [separator_string] (default="  ")
 Specifies which separator to use between filenames
 
 --padding [padding_string] (default=" ")
-Specifies which padding char will be used to align filenames in columns
+Specifies which padding char will be used to align filenames inside columns
 
-Examples:
-    --separator "-" --padding "+" // will show files as: file1+-file2
-    --separator "~~" --padding " " // will show files as: file1 ~~file2
+--sort [word] (default=name)
+Sort by word instead of name.
+Where word is one of:
+    size
+    extension
+    creation_date
+    access_date
+    modification_date
 
-#################
-# Miscellaneous #
-#################
+#########
+# Flags #
+#########
 
---read-graphenes [true/false] (default=true)
-Specifies whether to read filenames per graphenes or not.
-Let it turned on if you use non-english characters to keep alignment.
-Please note that it turns filename length's determination into an O(n) operation.
+-a | --show-dotfiles | --all [true/false] (default=false)
+Show all files, including the ones with names starting with a ".".
+Note: does not display implied "." and ".." folders.
 
---show-dotfiles [true/false] (default=false)
-Specifies whether to show files that have names starting with a "." or not.
+-r | --reverse (default=false)
+Reverse the order of files when sorting.
+
+
+
+
+
 "#;
