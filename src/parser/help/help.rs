@@ -1,7 +1,7 @@
 pub const TXT: &str = r#"
-##########################
-# Per entry type control #
-##########################
+##########
+# Kwargs #
+##########
 
 --files [codes] (default=1)
 --directories [codes] (default=17)
@@ -20,46 +20,48 @@ Where codes is one or more of:
  
 Specify some formatting code to use for an entry type.
 
-Examples:
-    --files 1   // file is bold
-    --files 12  // file is bold and dim
-    --files 1 --dir 2 // file is bold, dir is dim
+--files-suffix [suffix] (default="")
+--dotfiles-suffix [suffix] (default="")
+--directories-suffix [suffix] (default="")
+--symlinks-suffix [suffix] (default="")
+--unknowns-suffix [suffix] (default="")
+Appends a string at the end of the name of this type of file.
 
-#################
-# Color control #
-#################
-
---sum [lowest_sum] (default=512)
+--sum [minimal_sum] (default=512)
 Specifies the minimal sum of the red, green and blue
 components of the colors. Cannot be over 765 (255 * 3).
-
-Examples:
-    --sum 512 // This will be bright
-    --sum 100 // This will have a wide range, from very dark to very bright
-
-##############
-# Separators #
-##############
 
 --separator [separator_string] (default="  ")
 Specifies which separator to use between filenames
 
 --padding [padding_string] (default=" ")
-Specifies which padding char will be used to align filenames in columns
+Specifies which padding char will be used to align filenames inside columns
 
-Examples:
-    --separator "-" --padding "+" // will show files as: file1+-file2
-    --separator "~~" --padding " " // will show files as: file1 ~~file2
+--sort [word] (default=name)
+Sort by word instead of name.
+Where word is one of:
+    name
+    size 
+    extension
+    creation_date
+    access_date
+    modification_date
 
-#################
-# Miscellaneous #
-#################
+Note: Everything is sorted in ascending order, use the -r 
+flag to sort by desc.
 
---read-graphenes [true/false] (default=true)
-Specifies whether to read filenames per graphenes or not.
-Let it turned on if you use non-english characters to keep alignment.
-Please note that it turns filename length's determination into an O(n) operation.
+#########
+# Flags #
+#########
 
---show-dotfiles [true/false] (default=false)
-Specifies whether to show files that have names starting with a "." or not.
+-a | --show-dotfiles | --all (default=false)
+Show all files, including the ones with names starting with a ".".
+Note: does not display implied "." and ".." folders.
+
+-r | --reverse (default=false)
+Reverse the order of files when sorting.
+
+-dgdf | --dont-group-directories-first (default=true)
+Groups directories together before sorting them.
+
 "#;

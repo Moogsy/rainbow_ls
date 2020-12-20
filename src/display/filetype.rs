@@ -1,13 +1,15 @@
-use std::ffi;
-use std::cmp;
-use std::fs;
+use std::ffi::OsString;
+use std::cmp::Ordering;
+use std::fs::DirEntry;
+use std::borrow::Cow;
+use std::time::SystemTime;
 
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::parser;
+use crate::parser::Config;
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
-enum Kind {
+pub enum Kind {
     Directory,
     File(bool), // is_dotfile
     Symlink,
@@ -16,12 +18,20 @@ enum Kind {
 
 #[derive(Debug)]
 pub struct Entry {
-    pub name: ffi::OsString,
-    pub formatted_name: ffi::OsString,
-
+    // Name related stuff
+    pub name: OsString,
+    pub formatted_name: OsString,
     len: usize,
-    extension: Option<ffi::OsString>,
-    kind: Kind,
+    pub extension: Option<OsString>,
+
+    // File_type
+    pub kind: Kind,
+
+    // Metadata
+    pub size: Option<usize>,
+    pub created_at: Option<SystemTime>,
+    pub edited_at: Option<SystemTime>,
+    pub accessed_at: Option<SystemTime>,
 }
 
 struct RgbColor {
@@ -79,43 +89,40 @@ impl RgbColor {
 }
 
 impl Entry {
-    fn determine_kind(name: &str, dir_entry: &fs::DirEntry) -> Kind {
+    fn determine_kind(config: &Config, name: &mut OsString, dir_entry: &DirEntry) -> Kind {
         if let Ok(file_type) = dir_entry.file_type() {
             if file_type.is_file() {
-                if name.starts_with(".") {
+                if name.to_string_lossy().starts_with(".") {
+                    name.push(&config.dotfiles_suffix);
                     Kind::File(true)
                 } else {
+                    name.push(&config.files_suffix);
                     Kind::File(false)
                 }
             } else if file_type.is_dir() {
+                name.push(&config.directories_suffix);
                 Kind::Directory
             } else {
+                name.push(&config.symlinks_suffix);
                 Kind::Symlink
             }
         } else {
+            name.push(&config.unknowns_suffix);
             Kind::Unknown
         }
     }
 
-    fn determine_len(config: &parser::Config, name: &ffi::OsString) -> usize {
-        if config.read_graphemes {
-            name.to_string_lossy().graphemes(true).count()
-        } else {
-            name.len()
-        }
-    }
-    fn format_filename(formatted_name: &mut ffi::OsString, codes: &Vec<u8>) {
+    fn format_filename(formatted_name: &mut OsString, codes: &Vec<u8>) {
         for code in codes {
             let code_str: String = format!("\x1b[{}m", code);
-            let to_push: ffi::OsString = ffi::OsString::from(code_str);
+            let to_push: OsString = OsString::from(code_str);
             formatted_name.push(to_push);
         }
     }
 
-
-    fn determine_formatted_name(config: &parser::Config, name: &ffi::OsString, kind: &Kind, color: &mut RgbColor) -> ffi::OsString {
+    fn determine_formatted_name(config: &Config, name: &OsString, kind: &Kind, color: &mut RgbColor) -> OsString {
         let starting_seq: String = format!("\x1B[38;2;{};{};{}m", color.red, color.green, color.blue);
-        let mut formatted_name: ffi::OsString = ffi::OsString::from(starting_seq);
+        let mut formatted_name: OsString = OsString::from(starting_seq);
 
         match kind {
             Kind::File(_) => Self::format_filename(&mut formatted_name, &config.files),
@@ -130,7 +137,7 @@ impl Entry {
         formatted_name
 
     }
-    fn determine_extension(dir_entry: &fs::DirEntry) -> Option<ffi::OsString> {
+    fn determine_extension(dir_entry: &DirEntry) -> Option<OsString> {
         if let Some(ext) = dir_entry.path().extension() {
             Some(ext.to_os_string())
         } else {
@@ -138,15 +145,15 @@ impl Entry {
         }
     }
 
-    fn make_colors(name: &ffi::OsString, extension: &Option<ffi::OsString>) -> RgbColor {
-        let mut prod: u32 = 11;
+    fn make_colors(config: &Config, lossy_name: &str, extension: &Option<OsString>) -> RgbColor {
+        let mut prod: u32 = config.color_seed;
 
         if let Some(ext) = extension {
             for byte in ext.to_string_lossy().bytes() {
                 prod = prod.wrapping_mul(byte as u32);
             }
         } else {
-            for byte in name.to_string_lossy().bytes() {
+            for byte in lossy_name.bytes() {
                 prod = prod.wrapping_mul(byte as u32);
             }
         }
@@ -162,24 +169,52 @@ impl Entry {
         }
     }
 
+    fn info_from_metadata(dir_entry: &DirEntry) -> ([Option<SystemTime>; 3], Option<usize>){
+        let mut created_at: Option<SystemTime> = None;
+        let mut edited_at: Option<SystemTime> = None;
+        let mut accessed_at: Option<SystemTime> = None;
+        let mut size: Option<usize> = None;
+
+        if let Ok(metadata) = dir_entry.metadata() {
+            created_at = metadata.created().ok();
+            edited_at = metadata.modified().ok();
+            accessed_at = metadata.accessed().ok();
+            size = Some(metadata.len() as usize);
+        }
+        ([created_at, edited_at, accessed_at], size)
+    }
+
     pub fn len(&self) -> usize {
         self.len
     }
 
+    pub fn new(config: &Config, mut name: OsString, dir_entry: DirEntry) -> Self {
 
-    pub fn new(config: &parser::Config, name: ffi::OsString, dir_entry: fs::DirEntry) -> Self {
-        let kind: Kind = Self::determine_kind(&name.to_string_lossy(), &dir_entry);
-        let extension: Option<ffi::OsString> = Self::determine_extension(&dir_entry);
-        let len: usize = Self::determine_len(config, &name);
-        let mut color: RgbColor = Self::make_colors(&name, &extension);
+        let extension: Option<OsString> = Self::determine_extension(&dir_entry);
+        
+        let kind: Kind = Self::determine_kind(config, &mut name, &dir_entry);
+
+
+        let lossy_name: Cow<str> = name.to_string_lossy();
+
+        let mut color: RgbColor = Self::make_colors(config, &lossy_name, &extension);
         color.pad_lowest(config.min_rgb_sum);
 
+        let ([created_at, edited_at, accessed_at], size) = Self::info_from_metadata(&dir_entry);
+
         Self {
+            // Name related stuff (odd order due to borrows)
             formatted_name: Self::determine_formatted_name(config, &name, &kind, &mut color),
-            len,
             extension,
-            kind,
+            len: lossy_name.graphemes(true).count(),
             name,
+
+            // Metadata 
+            kind,
+            created_at,
+            edited_at,
+            accessed_at,
+            size,
         }
     }
 }
@@ -191,13 +226,13 @@ impl PartialEq for Entry {
 }
 
 impl PartialOrd for Entry {
-    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for Entry {
-    fn cmp(&self, other: &Self) -> cmp::Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         (&self.kind, &self.extension, &self.name).cmp(&(&other.kind, &other.extension, &other.name))
     }
 }

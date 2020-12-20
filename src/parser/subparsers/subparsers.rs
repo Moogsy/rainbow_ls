@@ -5,9 +5,15 @@ use std::process;
 use std::fs;
 
 const VALID_ESCAPE_DIGITS: [u8; 8] = [0, 1, 2, 3, 4, 5, 7, 8];
-
-const TRUTHY_WORDS: [&str; 7] = ["yes", "y", "true", "t", "1", "enable", "on"];
-const FALSY_WORDS: [&str; 7] = ["no", "n", "false", "f", "0", "disable", "off"];
+#[derive(Debug)]
+pub enum SortBy {
+    Name,
+    Size,
+    Extension,
+    CreationDate,
+    AccessDate,
+    ModificationDate,
+}
 
 /// Tries to parse the escape digits
 /// Panics if it fails to do so or if an invalid digit was passed
@@ -54,26 +60,6 @@ pub fn minimal_sum(curr_config: &mut u16, right_arg: String) {
     }
 }
 
-pub fn bool_converter(curr_config: &mut bool, right_arg: String) {
-    let right_arg_str: &&str = &right_arg.as_str();
-
-    if TRUTHY_WORDS.contains(right_arg_str) {
-        *curr_config = true;
-
-    } else if FALSY_WORDS.contains(right_arg_str) {
-        *curr_config = false;
-
-    } else {
-        eprintln!("Expected an argument contained in: \n[{}] or \n[{}], got {}", 
-                 TRUTHY_WORDS.join(","), 
-                 FALSY_WORDS.join(","),
-                 right_arg_str
-        );
-        process::exit(1);
-    }
-
-}
-
 pub fn padding(curr_config: &mut char, right_arg: String) {
     
     let mut chr_iter: str::Chars = right_arg.chars();
@@ -89,6 +75,27 @@ pub fn padding(curr_config: &mut char, right_arg: String) {
         eprintln!("Padding must consist of a single char, got: {}", right_arg);
         process::exit(1);
     }
+}
+
+pub fn sort_by(curr_config: &mut SortBy, right_arg: String) {
+    let sort_by: SortBy = {
+        match right_arg.to_lowercase().as_str() {
+            "name" => SortBy::Name,
+            "size" => SortBy::Size,
+            "extension" => SortBy::Extension,
+            "creation_date" => SortBy::CreationDate,
+            "access_date" => SortBy::AccessDate,
+            "modification_date" => SortBy::ModificationDate,
+            unknown => {
+                eprintln!("Unrecognized sort argument {}", unknown);
+                eprint!("Valid ones are: [name, size, extension, ");
+                eprintln!("creation_date, access_date, modification_date].");
+
+                process::exit(1);
+            }
+        }
+    };
+    *curr_config = sort_by;
 }
 
 pub fn consume_rest<T>(untreated_args: &mut Vec<String>, args_iterator: T)
@@ -126,14 +133,23 @@ pub fn dispatch_untreated_args(untreated_args: Vec<String>) -> (Vec<fs::ReadDir>
         }
     }
 
-    if ok_dirs.is_empty() && err_dirs.is_empty() {
-        if let Ok(curr_dir) = env::current_dir() {
-            check_final_pathbuf(curr_dir, &mut ok_dirs);
+    if ok_dirs.is_empty() {
+        if err_dirs.is_empty() {
+
+            if let Ok(curr_dir) = env::current_dir() {
+                check_final_pathbuf(curr_dir, &mut ok_dirs);
+            } else {
+                eprintln!("No directories were found, and couldn't reat the current one either.");
+                process::exit(1);
+            }
+
         } else {
-            eprintln!("No directories were found, and couldn't reat the current one either.");
+            let plural: &str = if err_dirs.len() > 1 {"ies"} else {"y"};
+            println!("Couldn't read director{}: {:?}", plural, err_dirs);
             process::exit(1);
         }
     }
+    
     (ok_dirs, err_dirs)
 }
 
