@@ -14,6 +14,12 @@ pub struct Config {
     pub symlinks: Vec<u8>,
     pub unknowns: Vec<u8>,
 
+    pub files_suffix: String,
+    pub dotfiles_suffix: String,
+    pub directories_suffix: String,
+    pub symlinks_suffix: String,
+    pub unknowns_suffix: String,
+
     pub min_rgb_sum: u16,
     pub sort_by: SortBy,
 
@@ -27,6 +33,7 @@ pub struct Config {
     
     // Auto-generated
     pub term_width: usize,
+    pub color_seed: u32,
 }
 
 
@@ -39,6 +46,12 @@ impl Default for Config {
                 directories: vec![1, 7],
                 symlinks: vec![1, 3],
                 unknowns: vec![1, 4],
+
+                files_suffix: String::from(""),
+                directories_suffix: String::from(""),
+                symlinks_suffix: String::from(""),
+                unknowns_suffix: String::from(""),
+                dotfiles_suffix: String::from(""),
 
                 min_rgb_sum: 512,
                 sort_by: SortBy::Name,
@@ -53,6 +66,7 @@ impl Default for Config {
 
                 // Auto generated
                 term_width: width,
+                color_seed: (&vec![7, 14] as *const Vec<i32> as i32).abs().max(3) as u32,
             }
         } else {
             eprintln!("Failed to get term's width");
@@ -109,18 +123,38 @@ where T: Iterator<Item = String> {
         "--unknowns" => {
             subparsers::formatting_args(&mut d_config.unknowns, right_arg)
         },
+
+        "--files-suffix" => {
+            d_config.files_suffix = right_arg;
+        },
+        "--dotfiles-suffix" => {
+            d_config.dotfiles_suffix = right_arg;
+        },
+        "--directories-suffix" => {
+            d_config.directories_suffix = right_arg;
+        },
+        "--symlinks-suffix" => {
+            d_config.symlinks_suffix = right_arg;
+        },
+        "--unknowns-suffix" => {
+            d_config.unknowns_suffix = right_arg;
+        },
+
         "--sum" => {
             subparsers::minimal_sum(&mut d_config.min_rgb_sum, right_arg)
         },
+
         "--separator" => {
             d_config.separator = right_arg;
         },
         "--padding" => {
             subparsers::padding(&mut d_config.padding, right_arg);
         },
+
         "--sort-by" => {
             subparsers::sort_by(&mut d_config.sort_by, right_arg);
         },
+        
         "--" => {
             untreated_args.push(right_arg);
             subparsers::consume_rest(untreated_args,  args_iter)

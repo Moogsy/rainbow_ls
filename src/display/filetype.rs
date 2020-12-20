@@ -1,11 +1,12 @@
 use std::ffi::OsString;
 use std::cmp::Ordering;
 use std::fs::DirEntry;
+use std::borrow::Cow;
 use std::time::SystemTime;
 
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::parser;
+use crate::parser::Config;
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum Kind {
@@ -88,21 +89,25 @@ impl RgbColor {
 }
 
 impl Entry {
-    fn determine_kind(lossy_name: &str, dir_entry: &DirEntry) -> Kind {
+    fn determine_kind(config: &Config, name: &mut OsString, dir_entry: &DirEntry) -> Kind {
         if let Ok(file_type) = dir_entry.file_type() {
-            
             if file_type.is_file() {
-                if lossy_name.starts_with(".") {
+                if name.to_string_lossy().starts_with(".") {
+                    name.push(&config.dotfiles_suffix);
                     Kind::File(true)
                 } else {
+                    name.push(&config.files_suffix);
                     Kind::File(false)
                 }
             } else if file_type.is_dir() {
+                name.push(&config.directories_suffix);
                 Kind::Directory
             } else {
+                name.push(&config.symlinks_suffix);
                 Kind::Symlink
             }
         } else {
+            name.push(&config.unknowns_suffix);
             Kind::Unknown
         }
     }
@@ -115,8 +120,7 @@ impl Entry {
         }
     }
 
-
-    fn determine_formatted_name(config: &parser::Config, name: &OsString, kind: &Kind, color: &mut RgbColor) -> OsString {
+    fn determine_formatted_name(config: &Config, name: &OsString, kind: &Kind, color: &mut RgbColor) -> OsString {
         let starting_seq: String = format!("\x1B[38;2;{};{};{}m", color.red, color.green, color.blue);
         let mut formatted_name: OsString = OsString::from(starting_seq);
 
@@ -141,8 +145,8 @@ impl Entry {
         }
     }
 
-    fn make_colors(lossy_name: &str, extension: &Option<OsString>) -> RgbColor {
-        let mut prod: u32 = 11;
+    fn make_colors(config: &Config, lossy_name: &str, extension: &Option<OsString>) -> RgbColor {
+        let mut prod: u32 = config.color_seed;
 
         if let Some(ext) = extension {
             for byte in ext.to_string_lossy().bytes() {
@@ -165,20 +169,7 @@ impl Entry {
         }
     }
 
-    pub fn len(&self) -> usize {
-        self.len
-    }
-
-    pub fn new(config: &parser::Config, name: OsString, dir_entry: DirEntry) -> Self {
-        let lossy_name: &str = &name.to_string_lossy();
-
-        let extension: Option<OsString> = Self::determine_extension(&dir_entry);
-        let kind: Kind = Self::determine_kind(lossy_name, &dir_entry);
-
-        let mut color: RgbColor = Self::make_colors(lossy_name, &extension);
-        color.pad_lowest(config.min_rgb_sum);
-
-
+    fn info_from_metadata(dir_entry: &DirEntry) -> ([Option<SystemTime>; 3], Option<usize>){
         let mut created_at: Option<SystemTime> = None;
         let mut edited_at: Option<SystemTime> = None;
         let mut accessed_at: Option<SystemTime> = None;
@@ -190,6 +181,26 @@ impl Entry {
             accessed_at = metadata.accessed().ok();
             size = Some(metadata.len() as usize);
         }
+        ([created_at, edited_at, accessed_at], size)
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn new(config: &Config, mut name: OsString, dir_entry: DirEntry) -> Self {
+
+        let extension: Option<OsString> = Self::determine_extension(&dir_entry);
+        
+        let kind: Kind = Self::determine_kind(config, &mut name, &dir_entry);
+
+
+        let lossy_name: Cow<str> = name.to_string_lossy();
+
+        let mut color: RgbColor = Self::make_colors(config, &lossy_name, &extension);
+        color.pad_lowest(config.min_rgb_sum);
+
+        let ([created_at, edited_at, accessed_at], size) = Self::info_from_metadata(&dir_entry);
 
         Self {
             // Name related stuff (odd order due to borrows)

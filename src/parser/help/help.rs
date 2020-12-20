@@ -1,6 +1,8 @@
 pub const TXT: &str = r#"
+##########
+# Kwargs #
+##########
 
-######################################################
 --files [codes] (default=1)
 --directories [codes] (default=17)
 --symlinks [codes] (default=13)
@@ -17,11 +19,13 @@ Where codes is one or more of:
     8 - Invisible
  
 Specify some formatting code to use for an entry type.
-######################################################
 
-##########
-# Kwargs #
-##########
+--files-suffix [suffix] (default="")
+--dotfiles-suffix [suffix] (default="")
+--directories-suffix [suffix] (default="")
+--symlinks-suffix [suffix] (default="")
+--unknowns-suffix [suffix] (default="")
+Appends a string at the end of the name of this type of file.
 
 --sum [minimal_sum] (default=512)
 Specifies the minimal sum of the red, green and blue
@@ -50,7 +54,7 @@ flag to sort by desc.
 # Flags #
 #########
 
--a | --show-dotfiles | --all [true/false] (default=false)
+-a | --show-dotfiles | --all (default=false)
 Show all files, including the ones with names starting with a ".".
 Note: does not display implied "." and ".." folders.
 
