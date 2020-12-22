@@ -3,9 +3,9 @@ pub const TXT: &str = r#"
 # Kwargs #
 ##########
 
---files [codes] (default=1)
---directories [codes] (default=17)
---symlinks [codes] (default=13)
+--files [codes] (default=None)
+--directories [codes] (default=4)
+--symlinks [codes] (default=1)
 --unknowns [codes] (default=14)
 
 Where codes is one or more of:
@@ -20,12 +20,19 @@ Where codes is one or more of:
  
 Specify some formatting code to use for an entry type.
 
---files-suffix [suffix] (default="")
---dotfiles-suffix [suffix] (default="")
---directories-suffix [suffix] (default="")
---symlinks-suffix [suffix] (default="")
---unknowns-suffix [suffix] (default="")
-Appends a string at the end of the name of this type of file.
+--files-prefix [prefix] (default=None)
+--dotfiles-prefix [prefix] (default=None)
+--directories-prefix [prefix] (default=None)
+--symlinks-prefix [prefix] (default=None)
+--unknowns-prefix [prefix] (default=None)
+
+--files-suffix [suffix] (default=None)
+--dotfiles-suffix [suffix] (default=None)
+--directories-suffix [suffix] (default="/")
+--symlinks-suffix [suffix] (default=None)
+--unknowns-suffix [suffix] (default=None)
+
+Appends a string at the beggining / end of the name of this type of file.
 
 --sum [minimal_sum] (default=512)
 Specifies the minimal sum of the red, green and blue
@@ -54,14 +61,25 @@ flag to sort by desc.
 # Flags #
 #########
 
--a | --show-dotfiles | --all (default=false)
+# Control what to show
+
+-sd | --show-dotfiles (default=true)
 Show all files, including the ones with names starting with a ".".
 Note: does not display implied "." and ".." folders.
+
+-sb | --show-backups (default=true)
+Show files with name ending with a "~".
+
+-has | --hide-all-special (default=false) 
+Hides all special filenames mentionned above.
+
+# Control how to show
 
 -r | --reverse (default=false)
 Reverse the order of files when sorting.
 
 -dgdf | --dont-group-directories-first (default=true)
 Groups directories together before sorting them.
+
 
 "#;

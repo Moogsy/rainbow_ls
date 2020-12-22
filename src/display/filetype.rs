@@ -89,54 +89,6 @@ impl RgbColor {
 }
 
 impl Entry {
-    fn determine_kind(config: &Config, name: &mut OsString, dir_entry: &DirEntry) -> Kind {
-        if let Ok(file_type) = dir_entry.file_type() {
-            if file_type.is_file() {
-                if name.to_string_lossy().starts_with(".") {
-                    name.push(&config.dotfiles_suffix);
-                    Kind::File(true)
-                } else {
-                    name.push(&config.files_suffix);
-                    Kind::File(false)
-                }
-            } else if file_type.is_dir() {
-                name.push(&config.directories_suffix);
-                Kind::Directory
-            } else {
-                name.push(&config.symlinks_suffix);
-                Kind::Symlink
-            }
-        } else {
-            name.push(&config.unknowns_suffix);
-            Kind::Unknown
-        }
-    }
-
-    fn format_filename(formatted_name: &mut OsString, codes: &Vec<u8>) {
-        for code in codes {
-            let code_str: String = format!("\x1b[{}m", code);
-            let to_push: OsString = OsString::from(code_str);
-            formatted_name.push(to_push);
-        }
-    }
-
-    fn determine_formatted_name(config: &Config, name: &OsString, kind: &Kind, color: &mut RgbColor) -> OsString {
-        let starting_seq: String = format!("\x1B[38;2;{};{};{}m", color.red, color.green, color.blue);
-        let mut formatted_name: OsString = OsString::from(starting_seq);
-
-        match kind {
-            Kind::File(_) => Self::format_filename(&mut formatted_name, &config.files),
-            Kind::Directory => Self::format_filename(&mut formatted_name, &config.directories),
-            Kind::Symlink => Self::format_filename(&mut formatted_name, &config.symlinks),
-            Kind::Unknown => Self::format_filename(&mut formatted_name, &config.unknowns),
-        };
-
-        formatted_name.push(name);
-        formatted_name.push("\x1B[0;00m");
-
-        formatted_name
-
-    }
     fn determine_extension(dir_entry: &DirEntry) -> Option<OsString> {
         if let Some(ext) = dir_entry.path().extension() {
             Some(ext.to_os_string())
@@ -145,6 +97,97 @@ impl Entry {
         }
     }
 
+    fn determine_kind(name: &OsString, dir_entry: &DirEntry) -> Kind {
+        if let Ok(file_type) = dir_entry.file_type() {
+            if file_type.is_file() {
+                if name.to_string_lossy().starts_with(".") {
+                    Kind::File(true)
+                } else {
+                    Kind::File(false)
+                }
+            } else if file_type.is_dir() {
+                Kind::Directory
+            } else {
+                Kind::Symlink
+            }
+        } else {
+            Kind::Unknown
+        }
+    }
+
+    fn format_filename(mut formatted_name: OsString, codes: &Vec<u8>, name: &OsString) -> OsString {
+        for code in codes {
+            let code_str: String = format!("\x1b[{}m", code);
+            let to_push: OsString = OsString::from(code_str);
+            formatted_name.push(to_push);
+        }
+        formatted_name.push(name);
+
+        formatted_name
+    }
+
+    /// Wish we had getattr in a non-hacky way, because this is very ugly
+    fn determine_formatted_name(config: &Config, name: &OsString, kind: &Kind, color: &mut RgbColor) -> (OsString, usize) {
+        let starting_seq: String = format!("\x1B[38;2;{};{};{}m", color.red, color.green, color.blue);
+        let mut formatted_name: OsString = OsString::from(starting_seq);
+
+        let mut len: usize = name.to_string_lossy().graphemes(true).count();
+
+        match kind {
+            Kind::File(_) => {
+                if let Some(prefix) = &config.files_prefix {
+                    formatted_name.push(prefix);
+                    len += prefix.len();
+                }
+                formatted_name = Self::format_filename(formatted_name, &config.files, name);
+
+                if let Some(suffix) = &config.files_suffix {
+                    formatted_name.push(suffix);
+                    len += suffix.len();
+                }
+            },
+            Kind::Directory => {
+                if let Some(prefix) = &config.directories_prefix {
+                    formatted_name.push(prefix);
+                    len += prefix.len();
+                }
+                formatted_name = Self::format_filename(formatted_name, &config.directories, name);
+
+                if let Some(suffix) = &config.directories_suffix {
+                    formatted_name.push(suffix);
+                    len += suffix.len();
+                }
+            },
+            Kind::Symlink => {
+                if let Some(prefix) = &config.symlinks_prefix {
+                    formatted_name.push(prefix);
+                    len += prefix.len();
+                }
+                formatted_name = Self::format_filename(formatted_name, &config.symlinks, name);
+
+                if let Some(suffix) = &config.symlinks_suffix {
+                    formatted_name.push(suffix);
+                    len += suffix.len();
+                }
+            },
+            Kind::Unknown => {
+                if let Some(prefix) = &config.unknowns_prefix {
+                    formatted_name.push(prefix);
+                    len += prefix.len();
+                }
+                formatted_name = Self::format_filename(formatted_name, &config.unknowns, name);
+
+                if let Some(suffix) = &config.unknowns_suffix {
+                    formatted_name.push(suffix);
+                    len += suffix.len();
+                }
+            },
+        };
+        formatted_name.push("\x1B[0;00m");
+
+        (formatted_name, len)
+
+    }
     fn make_colors(config: &Config, lossy_name: &str, extension: &Option<OsString>) -> RgbColor {
         let mut prod: u32 = config.color_seed;
 
@@ -188,12 +231,11 @@ impl Entry {
         self.len
     }
 
-    pub fn new(config: &Config, mut name: OsString, dir_entry: DirEntry) -> Self {
+    pub fn new(config: &Config, name: OsString, dir_entry: DirEntry) -> Self {
 
         let extension: Option<OsString> = Self::determine_extension(&dir_entry);
         
-        let kind: Kind = Self::determine_kind(config, &mut name, &dir_entry);
-
+        let kind: Kind = Self::determine_kind(&name, &dir_entry);
 
         let lossy_name: Cow<str> = name.to_string_lossy();
 
@@ -201,12 +243,13 @@ impl Entry {
         color.pad_lowest(config.min_rgb_sum);
 
         let ([created_at, edited_at, accessed_at], size) = Self::info_from_metadata(&dir_entry);
+        let (formatted_name, len): (OsString, usize) = Self::determine_formatted_name(config, &name, &kind, &mut color);
 
         Self {
             // Name related stuff (odd order due to borrows)
-            formatted_name: Self::determine_formatted_name(config, &name, &kind, &mut color),
+            formatted_name,
             extension,
-            len: lossy_name.graphemes(true).count(),
+            len,
             name,
 
             // Metadata 

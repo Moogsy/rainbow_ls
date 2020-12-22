@@ -42,22 +42,23 @@ fn read_dirs_to_entry(config: &Config, read_dir: ReadDir) -> (Vec<Entry>, Vec<Er
             Ok(dir_entry) => {
 
                 let name: OsString = dir_entry.file_name();
+                let lossy_name: &str = &name.to_string_lossy();
 
-                if config.show_dotfiles {
-                    let entry: Entry = Entry::new(config, name, dir_entry);
-                    total_length += entry.len() + config.separator.len();
-                    entries.push(entry);
-
-                } else if !name.to_string_lossy().starts_with(".") {
-                    let entry: Entry = Entry::new(config, name, dir_entry);
-                    total_length += entry.len() + config.separator.len();
-                    entries.push(entry);
+                if !config.show_dotfiles && lossy_name.starts_with(".") {
+                    continue;
                 }
+
+                if !config.show_backups && lossy_name.ends_with("~") {
+                    continue;
+                }
+
+                let entry: Entry = Entry::new(config, name, dir_entry);
+                total_length += entry.len() + config.separator.len();
+                entries.push(entry);
             },
             Err(error) => errors.push(error),
         }
     }
-
     entries = handle_sorting_flags(config, entries);
 
     (entries, errors, total_length)
@@ -109,37 +110,44 @@ fn show_multiline(entries: Vec<Entry>,
     let num_rows: usize = (entries.len() / num_columns) + 1;
 
     for index in 0..num_rows {
+        let column_display_iterator: ColumnDisplayIterator = entries
+            .iter()
+            .skip(index)
+            .step_by(num_rows)
+            .zip(column_sizes.iter())
+            .enumerate();
 
-    let column_display_iterator: ColumnDisplayIterator = entries
-        .iter()
-        .skip(index)
-        .step_by(num_rows)
-        .zip(column_sizes.iter())
-        .enumerate();
+        let no_separator_index: usize = column_display_iterator.len().max(1) - 1;
 
-    let no_separator_index: usize = column_display_iterator.len().max(1) - 1;
+        for (inner_index, (entry, column_size)) in column_display_iterator {
 
-    for (inner_index, (entry, column_size)) in column_display_iterator {
+            let lossy_name: Cow<str> = entry.formatted_name.to_string_lossy();
+            print!("{}", lossy_name);
 
-        let lossy_name: Cow<str> = entry.formatted_name.to_string_lossy();
-        print!("{}", lossy_name);
+            let diff: usize = column_size - entry.len();
+            for _ in 0..diff { 
+                print!("{}", config.padding);
+            }
 
-        let diff: usize = column_size - entry.len();
-        for _ in 0..diff { 
-            print!("{}", config.padding);
+            // There must be a way to directly get the index of that one
+            if inner_index != no_separator_index {
+                print!("{}", config.separator);
+            }
         }
-
-        // There must be a way to directly get the index of that one
-        if inner_index != no_separator_index {
-            print!("{}", config.separator);
-        }
-    }
     println!();
     }
 }
 
 /// Pretty prints out read_dirs 
 pub fn read_dir(config: &Config, read_dir: ReadDir) {
+
+    read_dir.next().unwrap().unwrap().path().display();
+    
+
+
+
+
+    
     let (entries, errors, total_length): (Vec<Entry>, Vec<Error>, usize) = read_dirs_to_entry(config, read_dir);
     
     if total_length <= config.term_width {

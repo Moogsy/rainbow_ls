@@ -14,11 +14,15 @@ pub struct Config {
     pub symlinks: Vec<u8>,
     pub unknowns: Vec<u8>,
 
-    pub files_suffix: String,
-    pub dotfiles_suffix: String,
-    pub directories_suffix: String,
-    pub symlinks_suffix: String,
-    pub unknowns_suffix: String,
+    pub files_prefix: Option<String>,
+    pub directories_prefix: Option<String>,
+    pub symlinks_prefix: Option<String>,
+    pub unknowns_prefix: Option<String>,
+
+    pub files_suffix: Option<String>,
+    pub directories_suffix: Option<String>,
+    pub symlinks_suffix: Option<String>,
+    pub unknowns_suffix: Option<String>,
 
     pub min_rgb_sum: u16,
     pub sort_by: SortBy,
@@ -28,6 +32,8 @@ pub struct Config {
 
     // Flags
     pub show_dotfiles: bool,
+    pub show_backups: bool,
+
     pub reverse_file_order: bool,
     pub group_directories_first: bool,
     
@@ -42,16 +48,20 @@ impl Default for Config {
         if let Some((width, _)) = term_size::dimensions() {
             Self {
                 // Kwargs
-                files: vec![1],
-                directories: vec![1, 7],
-                symlinks: vec![1, 3],
+                files: vec![],
+                directories: vec![],
+                symlinks: vec![3],
                 unknowns: vec![1, 4],
 
-                files_suffix: String::from(""),
-                directories_suffix: String::from(""),
-                symlinks_suffix: String::from(""),
-                unknowns_suffix: String::from(""),
-                dotfiles_suffix: String::from(""),
+                files_prefix: None,
+                directories_prefix: None,
+                symlinks_prefix: None,
+                unknowns_prefix: None,
+
+                files_suffix: None,
+                directories_suffix: Some(String::from("/")),
+                symlinks_suffix: None,
+                unknowns_suffix: None,
 
                 min_rgb_sum: 512,
                 sort_by: SortBy::Name,
@@ -60,7 +70,9 @@ impl Default for Config {
                 padding: ' ',
                 
                 // Flags
-                show_dotfiles: false,
+                show_dotfiles: true,
+                show_backups: true,
+
                 reverse_file_order: false,
                 group_directories_first: true,
 
@@ -87,8 +99,15 @@ fn dispatch_bool_arg(d_config: &mut Config, arg: &String) -> Result<(), ()> {
             println!("{}", help::TXT);
             process::exit(0);
         },
-        "--show-dotfiles" | "--all" | "-a" => {
-            d_config.show_dotfiles = true;
+        "-sd" | "--hide-dotfiles" => {
+            d_config.show_dotfiles = false;
+        },
+        "-sb" | "--hide-backups" => {
+            d_config.show_backups = false;
+        },
+        "-has" | "--hide-all-special" => {
+            d_config.show_dotfiles = false;
+            d_config.show_backups = false;
         },
         "-r" | "--reverse" => {
             d_config.reverse_file_order = true;
@@ -96,6 +115,7 @@ fn dispatch_bool_arg(d_config: &mut Config, arg: &String) -> Result<(), ()> {
         "-dgdr" | "--dont-group-directories-first" => {
             d_config.group_directories_first = false;
         },
+
         _ => {
             return Err(());
         },
@@ -123,38 +143,42 @@ where T: Iterator<Item = String> {
         "--unknowns" => {
             subparsers::formatting_args(&mut d_config.unknowns, right_arg)
         },
-
-        "--files-suffix" => {
-            d_config.files_suffix = right_arg;
+        "--files-prefix" => {
+            d_config.files_prefix = Some(right_arg);
         },
-        "--dotfiles-suffix" => {
-            d_config.dotfiles_suffix = right_arg;
+        "--files-suffix" => {
+            d_config.files_suffix = Some(right_arg);
+        },
+        "--directories-prefix" => {
+            d_config.directories_prefix = Some(right_arg);
         },
         "--directories-suffix" => {
-            d_config.directories_suffix = right_arg;
+            d_config.directories_suffix = Some(right_arg);
+        },
+        "--symlinks-prefix" => {
+            d_config.symlinks_prefix = Some(right_arg);
         },
         "--symlinks-suffix" => {
-            d_config.symlinks_suffix = right_arg;
+            d_config.symlinks_suffix = Some(right_arg);
+        },
+        "--unknowns-prefix" => {
+            d_config.unknowns_prefix = Some(right_arg);
         },
         "--unknowns-suffix" => {
-            d_config.unknowns_suffix = right_arg;
+            d_config.unknowns_suffix = Some(right_arg);
         },
-
         "--sum" => {
             subparsers::minimal_sum(&mut d_config.min_rgb_sum, right_arg)
         },
-
         "--separator" => {
             d_config.separator = right_arg;
         },
         "--padding" => {
             subparsers::padding(&mut d_config.padding, right_arg);
         },
-
         "--sort-by" => {
             subparsers::sort_by(&mut d_config.sort_by, right_arg);
         },
-        
         "--" => {
             untreated_args.push(right_arg);
             subparsers::consume_rest(untreated_args,  args_iter)
