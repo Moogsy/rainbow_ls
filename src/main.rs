@@ -1,15 +1,11 @@
-use std::env::{self, Args};
+mod config;
+use config::Config;
 
 mod parser;
-use parser::{Config, PassedFiles};
-mod display;
+mod subparsers;
+
 
 fn main() {
-    let args: Args = env::args();
-
-    let (config, passed_files): (Config, PassedFiles) = parser::get_user_input(args);
-
-    for read_dir in passed_files.ok_dirs {
-        display::read_dir(&config, read_dir);
-    }
+    let config: Config = parser::get_user_config();
+    println!("{:#?}", config);
 }
