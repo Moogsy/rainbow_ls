@@ -1,9 +1,9 @@
+use std::cmp::Ordering;
 use std::ffi::{OsStr, OsString};
-use std::io::Error;
-use std::time::SystemTime;
 use std::fs::{self, DirEntry, FileType, Metadata};
-
-use unicode_segmentation::UnicodeSegmentation;
+use std::io::Error;
+use std::path::PathBuf;
+use std::time::SystemTime;
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -22,50 +22,73 @@ pub enum Kind {
     Unknown,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RgbColor {
-    red: usize,
-    green: usize,
-    blue: usize,
+    pub red: usize,
+    pub green: usize,
+    pub blue: usize,
 }
 
 impl RgbColor {
-    fn get_components_sum(&self) -> usize {
+    pub fn get_components_sum(&self) -> usize {
         self.red + self.green + self.blue
     }
 
-    pub fn pad_lowest(&mut self, minimal_rgb_sum: usize) {
+    pub fn as_tuple(&self) -> (usize, usize, usize) {
+        (self.red, self.green, self.blue)
+    }
 
-        let mut color_sum: usize = self.get_components_sum();
+    pub fn pad_lowest(&mut self, min_rgb_sum: usize) {
+        let mut colors_sum: usize = self.get_components_sum();
 
-        if color_sum > minimal_rgb_sum { 
+        // Already good
+        if colors_sum > min_rgb_sum {
             return;
         }
 
-        let mut colors: [&mut usize; 3] = [&mut self.red, &mut self.blue, &mut self.green];
+        let mut colors: [&mut usize; 3] = [&mut self.red, &mut self.green, &mut self.blue];
         colors.sort_unstable();
 
-        let highest_addable_value: usize = 256 - *colors[2];
+        let highest_addable_value: usize = 255 - *colors[2];
 
-        if color_sum + highest_addable_value > minimal_rgb_sum {
-            *colors[2] += highest_addable_value;
+        let diff: usize = min_rgb_sum - colors_sum;
+
+        // Just increment all 3 colors simultaneously 
+        if (highest_addable_value * 3) > diff {
+            let to_add: usize = diff / 3;
+            for color in colors.iter_mut() {
+                **color = **color + to_add;
+            }
             return;
-        }
+        } 
 
+        // Increment them by ascending color value
         for color in colors.iter_mut() {
-            let new_color: usize = (minimal_rgb_sum - color_sum).min(255);
-            color_sum += new_color;
-            **color = new_color;
+            let potential_new_color: usize = **color + (min_rgb_sum - colors_sum);
+
+            if potential_new_color < 255 {
+                **color = potential_new_color;
+                return;
+
+            } else {
+                let old_color: usize = **color;
+
+                **color = 255;
+
+                colors_sum += (255 - old_color) as usize;
+            }
         }
     }
 }
 
-pub struct Entry {
+pub struct ColoredEntry {
 
     // Front stuff
+    pub name: OsString,
     pub formatted_name: OsString,
     pub extension: Option<OsString>,
-    pub color: RgbColor,
+    pub colour: RgbColor,
+    pub path: OsString,
     len: usize,
 
     // Acquired from Metadata
@@ -73,11 +96,11 @@ pub struct Entry {
     pub mode: Option<usize>,
     pub size_bytes: Option<usize>, 
     pub created_at: Option<SystemTime>,
-    pub edited_at: Option<SystemTime>,
+    pub modified_at: Option<SystemTime>,
     pub accessed_at: Option<SystemTime>,
 }
 
-impl Entry {
+impl ColoredEntry {
     fn make_colors(config: &Config, lossy_name: &str, extension: &Option<OsString>) -> RgbColor {
         let mut prod: usize = config.color_seed;
 
@@ -98,7 +121,6 @@ impl Entry {
         RgbColor {red, green, blue}
     }
 
-    #[cfg(unix)]
     fn make_kind(mode: usize, file_type: FileType) -> Kind {
         if file_type.is_file() {
             if mode & 0o1111 != 0 { // executable
@@ -109,21 +131,9 @@ impl Entry {
         } else if file_type.is_dir() {
             Kind::Directory
         } else {
-            Kind::Unknown
-        }
-    }
-
-    #[cfg(not(unix))]
-    fn make_kind(_: usize, file_type: FileType) -> Kind {
-        if file_type.is_file() {
-            Kind::File
-        } else if file_type.is_dir() {
-            Kind::Directory
-        } else {
             Kind::Symlink
         }
     }
-
     fn make_formatted_name(config: &Config, file_name: &OsString, kind: &Kind, color: &RgbColor) -> (OsString, usize) {
 
         let initial_seq: String = format!("\x1B[38;2;{};{};{}m", color.red, color.green, color.blue);
@@ -166,18 +176,24 @@ impl Entry {
         (working_seq, len)
     }
 
-    fn new(dir_entry: DirEntry, config: &Config) -> Self {
-        let file_name: OsString = dir_entry.file_name();
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn new(file_name: OsString, dir_entry: &DirEntry, config: &Config) -> Self {
         let extension: Option<OsString> = dir_entry.path().extension().map(OsStr::to_os_string);
 
         let lossy_name: &str = &file_name.to_string_lossy(); 
-        let color: RgbColor = Self::make_colors(config, lossy_name, &extension);
+        let mut colour: RgbColor = Self::make_colors(config, lossy_name, &extension);
+        colour.pad_lowest(config.minimal_rgb_sum);
+
+        let path_buf: PathBuf = dir_entry.path();
 
         // Stuff extracted from metadata
 
         let maybe_metadata: Result<Metadata, Error> = {
             if config.follow_symlinks {
-                fs::metadata(dir_entry.path())
+                fs::metadata(&path_buf)
             } else {
                 dir_entry.metadata()
             }
@@ -188,7 +204,7 @@ impl Entry {
         let mut mode: Option<usize> = None;
 
         let mut created_at: Option<SystemTime> = None;
-        let mut edited_at: Option<SystemTime> = None;
+        let mut modified_at: Option<SystemTime> = None;
         let mut accessed_at: Option<SystemTime> = None;
 
         if let Ok(metadata) = maybe_metadata {
@@ -198,7 +214,7 @@ impl Entry {
             size_bytes = Some(metadata.len() as usize);
 
             created_at = metadata.created().ok();
-            edited_at = metadata.modified().ok();
+            modified_at = metadata.modified().ok();
             accessed_at = metadata.accessed().ok();
 
             if cfg!(target_os="linux") {
@@ -210,20 +226,48 @@ impl Entry {
             }
         }
 
-        let (formatted_name, len): (OsString, usize) = Self::make_formatted_name(config, &file_name, &kind, &color);
+        let (formatted_name, len): (OsString, usize) = Self::make_formatted_name(config, &file_name, &kind, &colour);
 
         Self {
+            name: file_name,
             formatted_name,
             extension,
-            color,
+            colour,
+            path: path_buf.as_os_str().to_os_string(),
             len,
 
             kind,
             mode,
             size_bytes,
             created_at,
-            edited_at,
+            modified_at,
             accessed_at,
         }
     }
 }
+
+impl Eq for ColoredEntry {
+
+}
+
+impl PartialEq for ColoredEntry {
+    fn eq(&self, other: &Self) -> bool {
+        &self.path == &other.path
+    }
+}
+
+impl Ord for ColoredEntry {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let other_cmp: (&Kind, &Option<OsString>, &OsString) = (&other.kind, &other.extension, &other.name);
+        
+        (&self.kind, &self.extension, &self.name).cmp(&other_cmp)
+    }
+}
+
+impl PartialOrd for ColoredEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let cmp: Ordering = self.cmp(other);
+        Some(cmp)
+    }
+}
+

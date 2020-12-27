@@ -1,12 +1,14 @@
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::time::SystemTime;
+use std::env;
 
 use term_size;
 use regex::Regex;
 
 #[derive(Debug)]
 pub enum SortingReference {
+    Default,
     Name,
     Size,
     Extension,
@@ -46,13 +48,15 @@ pub struct Config {
     pub prefix: AddedStr,
     pub suffix: AddedStr,
 
-    pub minimal_rgb_sum: u16,
+    pub color_seed: usize,
+    pub minimal_rgb_sum: usize,
     pub one_per_line: bool,
     pub time_formatting: OsString,
     pub unit_size: SizeMeasurementUnit,
 
     // Sorting
     pub sort_by: SortingReference,
+    pub uppercase_first: bool,
     pub group_directories_first: bool,
     pub reverse: bool,
 
@@ -72,9 +76,8 @@ pub struct Config {
     pub exclude_pattern: Option<Regex>,
 
     // Auto generated //
-
+    pub current_dir: Option<PathBuf>,
     pub term_width: Option<usize>, 
-    pub color_seed: usize,
     pub paths: Vec<PathBuf>,
 }
 
@@ -95,19 +98,21 @@ impl Default for Config {
             titles: Vec::new(),
             files: Vec::new(),
             directories: Vec::new(),
-            executables: Vec::new(),
-            symlinks: Vec::new(),
-            unknowns: Vec::new(),
+            executables: vec![1],
+            symlinks: vec![4],
+            unknowns: vec![3],
 
             prefix: AddedStr::default(),
             suffix: AddedStr {directories: Some(OsString::from("/")), ..Default::default()},
 
+            color_seed,
             minimal_rgb_sum: 512,
             one_per_line: false,
             time_formatting: OsString::from("%b %m %H:%M"),
             unit_size: SizeMeasurementUnit::Bytes,
 
-            sort_by: SortingReference::Name,
+            sort_by: SortingReference::Default,
+            uppercase_first: false,
             group_directories_first: false,
             reverse: false,
 
@@ -123,9 +128,8 @@ impl Default for Config {
             include_pattern: None,
             exclude_pattern: None,
 
+            current_dir: env::current_dir().ok(),
             term_width: term_size::dimensions().map(|(w, _)| w),
-            color_seed,
-
             paths: Vec::new(),
         }
     }

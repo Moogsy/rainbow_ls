@@ -14,8 +14,11 @@ fn dispatch_flag_arg(config: &mut Config, arg: &str) -> Result<(), ()> {
         "--help" => {
             subparsers::print_help();
         },
-        "-opl" | "--one-per-line" => {
+        "-1" | "-opl" | "--one-per-line" => {
             config.one_per_line = true;
+        },
+        "-uc" | "--uppercase-first" => {
+            config.uppercase_first = true;
         },
         "-gdf" | "--group-directories-first" => {
             config.group_directories_first = true;
@@ -91,6 +94,9 @@ fn dispatch_keyword_arg(mut config: Config, left: &str, right: OsString) -> Conf
         },
         "--unkowns-suffix" => {
             config.suffix.unknowns = Some(right);
+        },
+        "--color-seed" => {
+            config.color_seed = subparsers::color_seed(right) 
         },
         "--sum" => {
             config.minimal_rgb_sum = subparsers::minimal_rgb_sum(right);

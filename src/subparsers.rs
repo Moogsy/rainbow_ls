@@ -1,6 +1,7 @@
-use std::process;
 use std::env;
+use std::process;
 
+use std::borrow::Cow;
 use std::ffi::OsString;
 use std::path::PathBuf;
 
@@ -45,7 +46,7 @@ pub fn formatting_args(left: &str, right: OsString) -> Vec<u8> {
     ret
 }
 
-fn check_sum_bounds(sum: u16) -> u16 {
+fn check_sum_bounds(sum: usize) -> usize {
     if sum < 765 {
         sum
     } else {
@@ -54,10 +55,21 @@ fn check_sum_bounds(sum: u16) -> u16 {
     }
 }
 
-pub fn minimal_rgb_sum(right: OsString) -> u16 {
+pub fn color_seed(right: OsString) -> usize {
+    let lossy_right: Cow<str> = right.to_string_lossy();
+
+    if let Ok(seed) = lossy_right.parse::<usize>() {
+        seed
+    } else {
+        eprintln!("Failed to convert {} to a valid color seed", lossy_right);
+        process::exit(1);
+    }
+}
+
+pub fn minimal_rgb_sum(right: OsString) -> usize {
     let lossy_right: &str = &right.to_string_lossy();
 
-    if let Ok(sum) = lossy_right.parse::<u16>() {
+    if let Ok(sum) = lossy_right.parse::<usize>() {
         check_sum_bounds(sum)
     } else {
         eprintln!(r#"Failed to parse the minimal sum as a positive number, got: "{}"."#, lossy_right);

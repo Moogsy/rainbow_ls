@@ -1,5 +1,5 @@
 mod config;
-mod entry;
+mod color_entry;
 
 pub use config::*;
-pub use entry::*;
+pub use color_entry::*;
