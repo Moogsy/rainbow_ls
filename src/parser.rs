@@ -5,6 +5,10 @@ use std::path::PathBuf;
 use crate::Config;
 use crate::subparsers;
 
+// There must be a way to add functions in hashmaps
+// Without doing hacky stuff
+// But for now, let's leave it like that
+
 fn dispatch_flag_arg(config: &mut Config, arg: &str) -> Result<(), ()> {
     match arg {
         "--help" => {
@@ -49,6 +53,9 @@ fn dispatch_keyword_arg(mut config: Config, left: &str, right: OsString) -> Conf
         "--directories" => {
             config.directories = subparsers::formatting_args(left, right);
         },
+        "--executables" => {
+            config.executables = subparsers::formatting_args(left, right);
+        },
         "--symlinks" => {
             config.symlinks = subparsers::formatting_args(left, right);
         },
@@ -61,6 +68,9 @@ fn dispatch_keyword_arg(mut config: Config, left: &str, right: OsString) -> Conf
         "--directories-prefix" => {
             config.prefix.directories = Some(right);
         },
+        "--executables-prefix" => {
+            config.prefix.executables = Some(right);
+        },
         "--symlinks-prefix" => {
             config.prefix.symlinks = Some(right);
         },
@@ -71,6 +81,9 @@ fn dispatch_keyword_arg(mut config: Config, left: &str, right: OsString) -> Conf
             config.suffix.files = Some(right)
         },
         "--directories-suffix" => {
+            config.suffix.directories = Some(right);
+        },
+        "--executables-suffix" => {
             config.suffix.directories = Some(right);
         },
         "--symlinks-suffix" => {
@@ -113,9 +126,9 @@ fn dispatch_keyword_arg(mut config: Config, left: &str, right: OsString) -> Conf
     config
 }
 
-pub fn get_user_config() -> Config {
-
+pub fn parse_user_args() -> (Config, Vec<PathBuf>) {
     let mut config: Config = Config::default();
+    let mut paths: Vec<PathBuf> = Vec::new();
     let mut args_iter: ArgsOs = env::args_os();
 
     while let Some(os_left) = args_iter.next() {
@@ -124,7 +137,7 @@ pub fn get_user_config() -> Config {
 
         if !left.starts_with("-") {
             let pathbuf: PathBuf = PathBuf::from(os_left);
-            config.paths.push(pathbuf);
+            paths.push(pathbuf);
             continue;
         }
         if dispatch_flag_arg(&mut config, left).is_ok() {
@@ -139,9 +152,9 @@ pub fn get_user_config() -> Config {
             subparsers::unfilled_argument(left);
         }
     }
-    config.paths = subparsers::default_to_curr_dir(config.paths);
+    paths = subparsers::default_to_curr_dir(paths);
     
-    config
+    (config, paths)
 }
 
 

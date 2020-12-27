@@ -1,7 +1,7 @@
 use std::ffi::{OsStr, OsString};
 use std::io::Error;
 use std::time::SystemTime;
-use std::fs::{self, DirEntry, Permissions, FileType, Metadata};
+use std::fs::{self, DirEntry, FileType, Metadata};
 
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -9,6 +9,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use std::os::unix::fs::PermissionsExt;
 
 use crate::types::Config;
+use crate::utils;
 
 
 
@@ -147,16 +148,16 @@ impl Entry {
         let mut len: usize = 0;
 
         if let Some(prefix) = maybe_prefix {
-            len += prefix.to_string_lossy().graphemes(true).count();
+            len += utils::os_string_graphene_len(&prefix);
             working_seq.push(prefix)
         }
 
-        len += file_name.to_string_lossy().graphemes(true).count();
+        len += utils::os_string_graphene_len(&file_name);
 
         working_seq.push(file_name);
 
         if let Some(suffix) = maybe_suffix {
-            len += suffix.to_string_lossy().graphemes(true).count();
+            len += utils::os_string_graphene_len(&suffix);
             working_seq.push(suffix)
         }
 

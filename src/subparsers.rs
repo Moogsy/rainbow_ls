@@ -139,18 +139,18 @@ pub fn width(right: OsString) -> Option<usize> {
 
 }
 
-pub fn default_to_curr_dir(mut untreated_args: Vec<PathBuf>) -> Vec<PathBuf> {
+pub fn default_to_curr_dir(mut paths: Vec<PathBuf>) -> Vec<PathBuf> {
     let curr_exe: &PathBuf = &env::current_exe().unwrap_or_else(|_| PathBuf::new());
 
-    for path_buf in untreated_args.iter() {
+    for path_buf in paths.iter() {
 
         if path_buf == curr_exe {
             continue;
         }
 
         if path_buf.is_dir() {
-            untreated_args.sort_unstable();
-            return untreated_args;
+            paths.sort_unstable();
+            return paths;
         }
     }
 
