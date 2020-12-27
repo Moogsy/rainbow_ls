@@ -1,5 +1,6 @@
 use std::env::{self, ArgsOs};
 use std::ffi::OsString;
+use std::path::PathBuf;
 
 use crate::Config;
 use crate::subparsers;
@@ -9,19 +10,28 @@ fn dispatch_flag_arg(config: &mut Config, arg: &str) -> Result<(), ()> {
         "--help" => {
             subparsers::print_help();
         },
+        "-opl" | "--one-per-line" => {
+            config.one_per_line = true;
+        },
+        "-gdf" | "--group-directories-first" => {
+            config.group_directories_first = true;
+        },
+        "-rev"  | "--reverse" => {
+            config.reverse = true; 
+        },
         "-sd" | "--show-dotfiles" => {
             config.show_dotfiles = true;
         },
         "-sb" | "--show-backups" => {
             config.show_backups = true;
         },
-        "-r"  | "--reverse" => {
-            config.reverse_output = true; 
+        "-rec" | "--recursive" => {
+            config.recursive = true;
         },
-        "-gdf" | "--group-directories-first" => {
-            config.group_directories_first = true;
+        "-fs" | "--follow-symlinks" => {
+            config.follow_symlinks = true;
         },
-        _ => return Err(()),
+      _ => return Err(()),
     }
 
     Ok(())
@@ -30,6 +40,9 @@ fn dispatch_flag_arg(config: &mut Config, arg: &str) -> Result<(), ()> {
 
 fn dispatch_keyword_arg(mut config: Config, left: &str, right: OsString) -> Config {
     match left {
+        "--titles" => {
+            config.titles = subparsers::formatting_args(left, right);
+        },
         "--files" => {
             config.files = subparsers::formatting_args(left, right);
         },
@@ -69,21 +82,33 @@ fn dispatch_keyword_arg(mut config: Config, left: &str, right: OsString) -> Conf
         "--sum" => {
             config.minimal_rgb_sum = subparsers::minimal_rgb_sum(right);
         },
+        "--time-formatting" => {
+            config.time_formatting = right;
+        },
+        "--unit-size" => {
+            config.unit_size = subparsers::unit_size(right);
+        },
+        "--sort-by" => {
+            config.sort_by = subparsers::sort_by(right);
+        },
         "--separator" => {
             config.separator = right;
         },
         "--padding" => {
             config.padding = subparsers::padding(right);
         },
-        "--sort-by" => {
-            config.sort_by = subparsers::sort_by(right);
+        "--include-pattern" => {
+            config.include_pattern = subparsers::regex_patterns(left, right);
+        },
+        "--exclude-pattern" => {
+            config.exclude_pattern = subparsers::regex_patterns(left, right);
         },
         "--width" => {
-            config.term_width = Some(subparsers::width(right));
+            config.term_width = subparsers::width(right);
         },
         _ => {
-            eprintln!("oh no");
-        }
+            subparsers::unrecognized_kwarg(left);
+        },
     }
     config
 }
@@ -91,18 +116,15 @@ fn dispatch_keyword_arg(mut config: Config, left: &str, right: OsString) -> Conf
 pub fn get_user_config() -> Config {
 
     let mut config: Config = Config::default();
-    let mut untreated_args: Vec<OsString> = Vec::new();
-
     let mut args_iter: ArgsOs = env::args_os();
 
-
-    // I have no idea about what i'm doing but let's pretend I do 
     while let Some(os_left) = args_iter.next() {
 
         let left: &str = &os_left.to_string_lossy(); 
 
         if !left.starts_with("-") {
-            untreated_args.push(os_left);
+            let pathbuf: PathBuf = PathBuf::from(os_left);
+            config.paths.push(pathbuf);
             continue;
         }
         if dispatch_flag_arg(&mut config, left).is_ok() {
@@ -117,6 +139,8 @@ pub fn get_user_config() -> Config {
             subparsers::unfilled_argument(left);
         }
     }
+    config.paths = subparsers::default_to_curr_dir(config.paths);
+    
     config
 }
 
