@@ -4,14 +4,11 @@ use std::fs::{self, DirEntry, FileType, Metadata};
 use std::io::Error;
 use std::path::PathBuf;
 use std::time::SystemTime;
-
-#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
+use unicode_segmentation::UnicodeSegmentation;
+
 use crate::types::Config;
-use crate::utils;
-
-
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Kind {
@@ -88,12 +85,11 @@ pub struct ColoredEntry {
     pub formatted_name: OsString,
     pub extension: Option<OsString>,
     pub colour: RgbColor,
-    pub path: OsString,
+    pub path: PathBuf,
     len: usize,
 
     // Acquired from Metadata
     pub kind: Kind,
-    pub mode: Option<usize>,
     pub size_bytes: Option<usize>, 
     pub created_at: Option<SystemTime>,
     pub modified_at: Option<SystemTime>,
@@ -158,16 +154,16 @@ impl ColoredEntry {
         let mut len: usize = 0;
 
         if let Some(prefix) = maybe_prefix {
-            len += utils::os_string_graphene_len(&prefix);
+            len += prefix.to_string_lossy().grapheme_indices(true).count();
             working_seq.push(prefix)
         }
 
-        len += utils::os_string_graphene_len(&file_name);
+        len += file_name.to_string_lossy().grapheme_indices(true).count();
 
         working_seq.push(file_name);
 
         if let Some(suffix) = maybe_suffix {
-            len += utils::os_string_graphene_len(&suffix);
+            len += suffix.to_string_lossy().grapheme_indices(true).count();
             working_seq.push(suffix)
         }
 
@@ -201,7 +197,6 @@ impl ColoredEntry {
         
         let mut kind: Kind = Kind::Unknown; 
         let mut size_bytes: Option<usize> = None;
-        let mut mode: Option<usize> = None;
 
         let mut created_at: Option<SystemTime> = None;
         let mut modified_at: Option<SystemTime> = None;
@@ -217,10 +212,9 @@ impl ColoredEntry {
             modified_at = metadata.modified().ok();
             accessed_at = metadata.accessed().ok();
 
-            if cfg!(target_os="linux") {
+            if cfg!(unix) {
                 let retrieved_mode: usize = metadata.permissions().mode() as usize;
                 kind = Self::make_kind(retrieved_mode, file_type);
-                mode = Some(retrieved_mode);
             } else {
                 kind = Self::make_kind(0, file_type);
             }
@@ -233,11 +227,10 @@ impl ColoredEntry {
             formatted_name,
             extension,
             colour,
-            path: path_buf.as_os_str().to_os_string(),
+            path: dir_entry.path(),
             len,
 
             kind,
-            mode,
             size_bytes,
             created_at,
             modified_at,

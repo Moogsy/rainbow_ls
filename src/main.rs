@@ -9,7 +9,6 @@ mod parser;
 mod subparsers;
 mod types;
 use types::Config;
-mod utils;
 
 // Some prototyping, will fix "later"
 fn call_recursive(config: Config, paths: Vec<PathBuf>) {
@@ -53,7 +52,6 @@ fn call_recursive(config: Config, paths: Vec<PathBuf>) {
     }
 }
 
-
 fn call_non_recursive(config: Config, paths: Vec<PathBuf>) {
     for path_buf in paths { 
         for read_dir in path_buf.read_dir() {
@@ -62,8 +60,6 @@ fn call_non_recursive(config: Config, paths: Vec<PathBuf>) {
         }
     }
 }
-
-
 
 fn main() {
     let (config, paths): (Config, Vec<PathBuf>) = parser::parse_user_args();

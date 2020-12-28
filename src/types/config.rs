@@ -50,13 +50,15 @@ pub struct Config {
 
     pub color_seed: usize,
     pub minimal_rgb_sum: usize,
+
     pub one_per_line: bool,
+    pub is_long_listing: bool,
+
     pub time_formatting: OsString,
     pub unit_size: SizeMeasurementUnit,
 
     // Sorting
     pub sort_by: SortingReference,
-    pub uppercase_first: bool,
     pub group_directories_first: bool,
     pub reverse: bool,
 
@@ -108,11 +110,12 @@ impl Default for Config {
             color_seed,
             minimal_rgb_sum: 512,
             one_per_line: false,
+            is_long_listing: false,
+
             time_formatting: OsString::from("%b %m %H:%M"),
             unit_size: SizeMeasurementUnit::Bytes,
 
             sort_by: SortingReference::Default,
-            uppercase_first: false,
             group_directories_first: false,
             reverse: false,
 

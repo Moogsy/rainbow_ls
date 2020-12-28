@@ -5,9 +5,8 @@ use std::path::PathBuf;
 use crate::Config;
 use crate::subparsers;
 
-// There must be a way to add functions in hashmaps
-// Without doing hacky stuff
-// But for now, let's leave it like that
+// There must be a way to add functions in hashmaps without any hacky stuff
+// But for now, let's leave it like that, that gigantic match mess
 
 fn dispatch_flag_arg(config: &mut Config, arg: &str) -> Result<(), ()> {
     match arg {
@@ -17,8 +16,8 @@ fn dispatch_flag_arg(config: &mut Config, arg: &str) -> Result<(), ()> {
         "-1" | "-opl" | "--one-per-line" => {
             config.one_per_line = true;
         },
-        "-uc" | "--uppercase-first" => {
-            config.uppercase_first = true;
+        "-ll" | "--long-listing" => {
+            config.is_long_listing = true;
         },
         "-gdf" | "--group-directories-first" => {
             config.group_directories_first = true;
