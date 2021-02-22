@@ -1,7 +1,7 @@
 use std::borrow::Cow;
-use crate::types::{ColoredEntry, Config};
+use crate::types::{ColouredEntry, Config};
 
-pub fn show(colored_entries: Vec<ColoredEntry>, config: &Config) {
+pub fn show(colored_entries: Vec<ColouredEntry>, config: &Config) {
 
     let lossy_sep: Cow<str> = config.separator.to_string_lossy();
 

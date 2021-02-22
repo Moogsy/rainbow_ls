@@ -4,7 +4,7 @@ use std::fs::DirEntry;
 use std::io::Error;
 use std::path::PathBuf;
 
-use crate::types::{Config, ColoredEntry, Kind, SortingReference};
+use crate::types::{Config, ColouredEntry, Kind, SortingReference};
 
 pub fn  print_title(path_buf: &PathBuf) {
     if let Ok(curr_dir) = env::current_dir() {
@@ -57,9 +57,10 @@ pub fn  is_allowed_filename(config: &Config, lossy_file_name: Cow<str>) -> bool 
     true
 }
 
-pub fn  sort_entries(config: &Config, mut entries: Vec<ColoredEntry>) -> Vec<ColoredEntry> {
+pub fn  sort_entries(config: &Config, mut entries: Vec<ColouredEntry>) -> Vec<ColouredEntry> {
 
-    let sort_by  = |entry: &ColoredEntry| !(entry.kind == Kind::Directory && config.group_directories_first);
+    // Not vey elegant way to force dirs grouping if needed...
+    let sort_by  = |entry: &ColouredEntry| !(entry.kind == Kind::Directory && config.group_directories_first);
 
     match config.sort_by {
         SortingReference::AccessDate => {
@@ -77,7 +78,7 @@ pub fn  sort_entries(config: &Config, mut entries: Vec<ColoredEntry>) -> Vec<Col
         SortingReference::ModificationDate => {
             entries.sort_unstable_by_key(|entry| (sort_by(entry), entry.modified_at))
         },
-        SortingReference::Name => { // newline to respect line length limit, feels less readable
+        SortingReference::Name => { 
             entries.sort_unstable_by_key(|entry| (sort_by(entry), entry.name.clone()))
         },
         SortingReference::Size => {

@@ -5,9 +5,9 @@ use std::io::Error;
 use std::process;
 use std::ffi::OsString;
 
-use crate::types::{ColoredEntry, Config};
+use crate::types::{ColouredEntry, Config};
 
-use super::{long_listing, multiline, one_line, one_per_line, utils};
+use super::{multiline, one_line, one_per_line, utils};
 
 pub fn display_path(config: &Config, path_buf: &PathBuf, read_dir: &Vec<Result<DirEntry, Error>>) {
 
@@ -15,7 +15,7 @@ pub fn display_path(config: &Config, path_buf: &PathBuf, read_dir: &Vec<Result<D
 
     let (entries, errors): (Vec<&DirEntry>, Vec<&Error>) = utils::divide_entries(read_dir);
 
-    let mut colored_entries: Vec<ColoredEntry> = Vec::new();
+    let mut colored_entries: Vec<ColouredEntry> = Vec::new();
     let mut total_len: usize = 0;
 
     for dir_entry in entries {
@@ -27,7 +27,7 @@ pub fn display_path(config: &Config, path_buf: &PathBuf, read_dir: &Vec<Result<D
             continue;
         }
 
-        let colored_entry: ColoredEntry = ColoredEntry::new(file_name, dir_entry, config);
+        let colored_entry: ColouredEntry = ColouredEntry::new(file_name, dir_entry, config);
         total_len += colored_entry.len();
         colored_entries.push(colored_entry);
     }
@@ -36,8 +36,6 @@ pub fn display_path(config: &Config, path_buf: &PathBuf, read_dir: &Vec<Result<D
 
     if config.one_per_line {
         one_per_line::show(colored_entries);
-    } else if config.is_long_listing  {
-        long_listing::show(colored_entries, config);
     } else if let Some(term_width) = config.term_width {
         if total_len < term_width {
             one_line::show(colored_entries, config);

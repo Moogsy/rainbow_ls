@@ -1,7 +1,7 @@
 use std::borrow::Cow;
-use crate::types::{ColoredEntry, Config};
+use crate::types::{ColouredEntry, Config};
 
-fn get_column_length(entries: &Vec<ColoredEntry>, num_columns: usize, column: usize) -> usize {
+fn get_column_length(entries: &Vec<ColouredEntry>, num_columns: usize, column: usize) -> usize {
     let num_rows: usize = (entries.len() / num_columns) + 1;
     let mut column_length: usize = 0;
     
@@ -14,7 +14,7 @@ fn get_column_length(entries: &Vec<ColoredEntry>, num_columns: usize, column: us
     column_length
 }
 
-fn get_column_lengths(config: &Config, entries: &Vec<ColoredEntry>) -> Vec<usize> {
+fn get_column_lengths(config: &Config, entries: &Vec<ColouredEntry>) -> Vec<usize> {
     let mut best_column_lengths: Vec<usize> = Vec::new();
 
     // Wonder if there is some kind of formula that could help us 
@@ -38,7 +38,7 @@ fn get_column_lengths(config: &Config, entries: &Vec<ColoredEntry>) -> Vec<usize
     best_column_lengths
 }
 
-pub fn show(entries: Vec<ColoredEntry>, config: &Config) {
+pub fn show(entries: Vec<ColouredEntry>, config: &Config) {
 
     let column_sizes = get_column_lengths(config, &entries);
 

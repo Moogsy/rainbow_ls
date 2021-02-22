@@ -78,7 +78,7 @@ impl RgbColor {
     }
 }
 
-pub struct ColoredEntry {
+pub struct ColouredEntry {
 
     // Front stuff
     pub name: OsString,
@@ -96,7 +96,7 @@ pub struct ColoredEntry {
     pub accessed_at: Option<SystemTime>,
 }
 
-impl ColoredEntry {
+impl ColouredEntry {
     fn make_colors(config: &Config, lossy_name: &str, extension: &Option<OsString>) -> RgbColor {
         let mut prod: usize = config.color_seed;
 
@@ -239,17 +239,17 @@ impl ColoredEntry {
     }
 }
 
-impl Eq for ColoredEntry {
+impl Eq for ColouredEntry {
 
 }
 
-impl PartialEq for ColoredEntry {
+impl PartialEq for ColouredEntry {
     fn eq(&self, other: &Self) -> bool {
         &self.path == &other.path
     }
 }
 
-impl Ord for ColoredEntry {
+impl Ord for ColouredEntry {
     fn cmp(&self, other: &Self) -> Ordering {
         let other_cmp: (&Kind, &Option<OsString>, &OsString) = (&other.kind, &other.extension, &other.name);
         
@@ -257,7 +257,7 @@ impl Ord for ColoredEntry {
     }
 }
 
-impl PartialOrd for ColoredEntry {
+impl PartialOrd for ColouredEntry {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         let cmp: Ordering = self.cmp(other);
         Some(cmp)
