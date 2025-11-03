@@ -1,8 +1,8 @@
 use std::collections::{HashSet, VecDeque};
-use std::io::Error;
-use std::fs::{self, DirEntry};
-use std::path::PathBuf;
 use std::ffi::OsString;
+use std::fs::{self, DirEntry};
+use std::io::Error;
+use std::path::{Path, PathBuf};
 
 mod display;
 mod parser;
@@ -10,65 +10,69 @@ mod subparsers;
 mod types;
 use types::Config;
 
-// Some prototyping, will fix "later"
-fn call_recursive(config: Config, paths: Vec<PathBuf>) {
+fn collect_entries(path: &Path) -> Vec<Result<DirEntry, Error>> {
+    match fs::read_dir(path) {
+        Ok(read_dir) => read_dir.collect(),
+        Err(error) => vec![Err(error)],
+    }
+}
 
-    let mut stack: VecDeque<PathBuf> = paths.into_iter().collect();
-    let mut seen: HashSet<OsString> = HashSet::new();  // circular symlinks
+fn visit_directory(config: &Config, path: &PathBuf) -> Vec<Result<DirEntry, Error>> {
+    let entries = collect_entries(path);
+    display::display_path(config, path, &entries);
+    entries
+}
 
-    while let Some(path_buf) = stack.pop_front() {
-        for read_dir in path_buf.read_dir() {
+fn enqueue_children(
+    config: &Config,
+    entries: &[Result<DirEntry, Error>],
+    stack: &mut VecDeque<PathBuf>,
+    seen: &mut HashSet<OsString>,
+) {
+    for dir_entry in entries.iter().filter_map(|entry| entry.as_ref().ok()) {
+        let path = dir_entry.path();
+        let file_type = match dir_entry.file_type() {
+            Ok(file_type) => file_type,
+            Err(_) => continue,
+        };
 
-            let collected_read_dir: Vec<Result<DirEntry, Error>> = read_dir.into_iter().collect();
-            display::display_path(&config, &path_buf, &collected_read_dir); 
-
-            for dir_entry in collected_read_dir.into_iter().filter_map(Result::ok) {
-
-                if let Ok(metadata) = dir_entry.metadata() {
-
-                    let path: PathBuf = dir_entry.path();
-                    let os_str_name: OsString = path.as_os_str().to_os_string();
-
-                    if seen.contains(&os_str_name) {
-                        continue; 
-                    }
-                    if metadata.file_type().is_dir() {
-                        seen.insert(os_str_name);
-                        stack.push_back(path);
-
-                    } else if metadata.file_type().is_symlink() && config.follow_symlinks {
-
-                        seen.insert(os_str_name);
-
-                        if let Ok(link) = fs::read_link(&path) {
-                            stack.push_back(link);
-                        } else {
-                            stack.push_back(path);
-                        }
-                    }
-                }
+        if file_type.is_dir() {
+            let os_name = path.as_os_str().to_os_string();
+            if seen.insert(os_name) {
+                stack.push_back(path);
+            }
+        } else if file_type.is_symlink() && config.follow_symlinks {
+            let os_name = path.as_os_str().to_os_string();
+            if seen.insert(os_name) {
+                let target = fs::read_link(&path).unwrap_or_else(|_| path.clone());
+                stack.push_back(target);
             }
         }
     }
 }
 
-fn call_non_recursive(config: Config, paths: Vec<PathBuf>) {
-    for path_buf in paths { 
-        for read_dir in path_buf.read_dir() {
-            let collected_read_dir: Vec<Result<DirEntry, Error>> = read_dir.into_iter().collect();
-            display::display_path(&config, &path_buf, &collected_read_dir);
-        }
+fn call_recursive(config: &Config, paths: Vec<PathBuf>) {
+    let mut stack: VecDeque<PathBuf> = paths.into_iter().collect();
+    let mut seen: HashSet<OsString> = HashSet::new();
+
+    while let Some(path_buf) = stack.pop_front() {
+        let entries = visit_directory(config, &path_buf);
+        enqueue_children(config, &entries, &mut stack, &mut seen);
+    }
+}
+
+fn call_non_recursive(config: &Config, paths: Vec<PathBuf>) {
+    for path_buf in paths {
+        visit_directory(config, &path_buf);
     }
 }
 
 fn main() {
     let (config, paths): (Config, Vec<PathBuf>) = parser::parse_user_args();
-    
+
     if config.recursive {
-        call_recursive(config, paths);
+        call_recursive(&config, paths);
     } else {
-        call_non_recursive(config, paths);
+        call_non_recursive(&config, paths);
     }
 }
-
-

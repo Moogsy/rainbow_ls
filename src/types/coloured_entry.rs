@@ -2,13 +2,13 @@ use std::cmp::Ordering;
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, DirEntry, FileType, Metadata};
 use std::io::Error;
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::time::SystemTime;
-use std::os::unix::fs::PermissionsExt;
 
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::types::Config;
+use crate::types::{Config, RgbColor};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Kind {
@@ -19,67 +19,7 @@ pub enum Kind {
     Unknown,
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct RgbColor {
-    pub red: usize,
-    pub green: usize,
-    pub blue: usize,
-}
-
-impl RgbColor {
-    pub fn get_components_sum(&self) -> usize {
-        self.red + self.green + self.blue
-    }
-
-    pub fn as_tuple(&self) -> (usize, usize, usize) {
-        (self.red, self.green, self.blue)
-    }
-
-    pub fn pad_lowest(&mut self, min_rgb_sum: usize) {
-        let mut colors_sum: usize = self.get_components_sum();
-
-        // Already good
-        if colors_sum > min_rgb_sum {
-            return;
-        }
-
-        let mut colors: [&mut usize; 3] = [&mut self.red, &mut self.green, &mut self.blue];
-        colors.sort_unstable();
-
-        let highest_addable_value: usize = 255 - *colors[2];
-
-        let diff: usize = min_rgb_sum - colors_sum;
-
-        // Just increment all 3 colors simultaneously 
-        if (highest_addable_value * 3) > diff {
-            let to_add: usize = diff / 3;
-            for color in colors.iter_mut() {
-                **color = **color + to_add;
-            }
-            return;
-        } 
-
-        // Increment them by ascending color value
-        for color in colors.iter_mut() {
-            let potential_new_color: usize = **color + (min_rgb_sum - colors_sum);
-
-            if potential_new_color < 255 {
-                **color = potential_new_color;
-                return;
-
-            } else {
-                let old_color: usize = **color;
-
-                **color = 255;
-
-                colors_sum += (255 - old_color) as usize;
-            }
-        }
-    }
-}
-
 pub struct ColouredEntry {
-
     // Front stuff
     pub name: OsString,
     pub formatted_name: OsString,
@@ -90,7 +30,7 @@ pub struct ColouredEntry {
 
     // Acquired from Metadata
     pub kind: Kind,
-    pub size_bytes: Option<usize>, 
+    pub size_bytes: Option<usize>,
     pub created_at: Option<SystemTime>,
     pub modified_at: Option<SystemTime>,
     pub accessed_at: Option<SystemTime>,
@@ -114,12 +54,13 @@ impl ColouredEntry {
         let (mut red, green): (usize, usize) = (green / 255, green % 255);
         red %= 255;
 
-        RgbColor {red, green, blue}
+        RgbColor { red, green, blue }
     }
 
     fn make_kind(mode: usize, file_type: FileType) -> Kind {
         if file_type.is_file() {
-            if mode & 0o1111 != 0 { // executable
+            if mode & 0o1111 != 0 {
+                // executable
                 Kind::Executable
             } else {
                 Kind::File
@@ -130,21 +71,46 @@ impl ColouredEntry {
             Kind::Symlink
         }
     }
-    fn make_formatted_name(config: &Config, file_name: &OsString, kind: &Kind, color: &RgbColor) -> (OsString, usize) {
 
-        let initial_seq: String = format!("\x1B[38;2;{};{};{}m", color.red, color.green, color.blue);
+    fn make_formatted_name(
+        config: &Config,
+        file_name: &OsString,
+        kind: &Kind,
+        color: &RgbColor,
+    ) -> (OsString, usize) {
+        let initial_seq: String =
+            format!("\x1B[38;2;{};{};{}m", color.red, color.green, color.blue);
 
         let mut working_seq: OsString = OsString::from(initial_seq);
 
-        let (codes, maybe_prefix, maybe_suffix): (&Vec<u8>, Option<OsString>, Option<OsString>) = {
+        let (codes, maybe_prefix, maybe_suffix): (&Vec<u8>, Option<OsString>, Option<OsString>) =
             match kind {
-                Kind::File => (&config.files, config.prefix.files.clone(), config.suffix.files.clone(),),
-                Kind::Directory => (&config.directories, config.prefix.directories.clone(), config.suffix.directories.clone(),),
-                Kind::Executable => (&config.executables, config.prefix.executables.clone(), config.suffix.executables.clone(),),
-                Kind::Symlink => (&config.symlinks, config.prefix.symlinks.clone(), config.suffix.symlinks.clone(),),
-                Kind::Unknown => (&config.unknowns, config.prefix.unknowns.clone(), config.suffix.unknowns.clone(),),
-            }
-        };
+                Kind::File => (
+                    &config.files,
+                    config.prefix.files.clone(),
+                    config.suffix.files.clone(),
+                ),
+                Kind::Directory => (
+                    &config.directories,
+                    config.prefix.directories.clone(),
+                    config.suffix.directories.clone(),
+                ),
+                Kind::Executable => (
+                    &config.executables,
+                    config.prefix.executables.clone(),
+                    config.suffix.executables.clone(),
+                ),
+                Kind::Symlink => (
+                    &config.symlinks,
+                    config.prefix.symlinks.clone(),
+                    config.suffix.symlinks.clone(),
+                ),
+                Kind::Unknown => (
+                    &config.unknowns,
+                    config.prefix.unknowns.clone(),
+                    config.suffix.unknowns.clone(),
+                ),
+            };
 
         for code in codes {
             let code_str: String = format!("\x1b[{}m", code);
@@ -179,7 +145,7 @@ impl ColouredEntry {
     pub fn new(file_name: OsString, dir_entry: &DirEntry, config: &Config) -> Self {
         let extension: Option<OsString> = dir_entry.path().extension().map(OsStr::to_os_string);
 
-        let lossy_name: &str = &file_name.to_string_lossy(); 
+        let lossy_name: &str = &file_name.to_string_lossy();
         let mut colour: RgbColor = Self::make_colors(config, lossy_name, &extension);
         colour.pad_lowest(config.minimal_rgb_sum);
 
@@ -187,15 +153,13 @@ impl ColouredEntry {
 
         // Stuff extracted from metadata
 
-        let maybe_metadata: Result<Metadata, Error> = {
-            if config.follow_symlinks {
-                fs::metadata(&path_buf)
-            } else {
-                dir_entry.metadata()
-            }
+        let maybe_metadata: Result<Metadata, Error> = if config.follow_symlinks {
+            fs::metadata(&path_buf)
+        } else {
+            dir_entry.metadata()
         };
-        
-        let mut kind: Kind = Kind::Unknown; 
+
+        let mut kind: Kind = Kind::Unknown;
         let mut size_bytes: Option<usize> = None;
 
         let mut created_at: Option<SystemTime> = None;
@@ -203,7 +167,6 @@ impl ColouredEntry {
         let mut accessed_at: Option<SystemTime> = None;
 
         if let Ok(metadata) = maybe_metadata {
-
             let file_type: FileType = metadata.file_type();
 
             size_bytes = Some(metadata.len() as usize);
@@ -220,7 +183,8 @@ impl ColouredEntry {
             }
         }
 
-        let (formatted_name, len): (OsString, usize) = Self::make_formatted_name(config, &file_name, &kind, &colour);
+        let (formatted_name, len): (OsString, usize) =
+            Self::make_formatted_name(config, &file_name, &kind, &colour);
 
         Self {
             name: file_name,
@@ -239,9 +203,7 @@ impl ColouredEntry {
     }
 }
 
-impl Eq for ColouredEntry {
-
-}
+impl Eq for ColouredEntry {}
 
 impl PartialEq for ColouredEntry {
     fn eq(&self, other: &Self) -> bool {
@@ -251,8 +213,9 @@ impl PartialEq for ColouredEntry {
 
 impl Ord for ColouredEntry {
     fn cmp(&self, other: &Self) -> Ordering {
-        let other_cmp: (&Kind, &Option<OsString>, &OsString) = (&other.kind, &other.extension, &other.name);
-        
+        let other_cmp: (&Kind, &Option<OsString>, &OsString) =
+            (&other.kind, &other.extension, &other.name);
+
         (&self.kind, &self.extension, &self.name).cmp(&other_cmp)
     }
 }
@@ -263,4 +226,3 @@ impl PartialOrd for ColouredEntry {
         Some(cmp)
     }
 }
-
