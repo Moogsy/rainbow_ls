@@ -14,7 +14,7 @@ use crate::types::{SortingReference, SizeMeasurementUnit};
 // Kwargs
 
 fn handle_digit(mut ret: Vec<u8>, digit: u32, left: &str, chr: char) -> Vec<u8> {
-    if (0..9).contains(&digit) {
+    if (0..=9).contains(&digit) {
         ret.push(digit as u8);
     } else {
         eprintln!(r#"[{}] Expected a digit between 0 and 9 inclusive, got: {}."#, left, chr);

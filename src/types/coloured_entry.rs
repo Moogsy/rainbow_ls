@@ -8,6 +8,8 @@ use std::time::SystemTime;
 
 use unicode_segmentation::UnicodeSegmentation;
 
+use colored::Colorize;
+
 use crate::types::{Config, RgbColor};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -78,11 +80,6 @@ impl ColouredEntry {
         kind: &Kind,
         color: &RgbColor,
     ) -> (OsString, usize) {
-        let initial_seq: String =
-            format!("\x1B[38;2;{};{};{}m", color.red, color.green, color.blue);
-
-        let mut working_seq: OsString = OsString::from(initial_seq);
-
         let (codes, maybe_prefix, maybe_suffix): (&Vec<u8>, Option<OsString>, Option<OsString>) =
             match kind {
                 Kind::File => (
@@ -112,30 +109,45 @@ impl ColouredEntry {
                 ),
             };
 
-        for code in codes {
-            let code_str: String = format!("\x1b[{}m", code);
-            working_seq.push(code_str)
-        }
-
         let mut len: usize = 0;
+        let mut formatted_content: String = String::new();
 
         if let Some(prefix) = maybe_prefix {
-            len += prefix.to_string_lossy().grapheme_indices(true).count();
-            working_seq.push(prefix)
+            let lossy_prefix = prefix.to_string_lossy();
+            len += lossy_prefix.grapheme_indices(true).count();
+            formatted_content.push_str(&lossy_prefix);
         }
 
-        len += file_name.to_string_lossy().grapheme_indices(true).count();
-
-        working_seq.push(file_name);
+        let lossy_file_name = file_name.to_string_lossy();
+        len += lossy_file_name.grapheme_indices(true).count();
+        formatted_content.push_str(&lossy_file_name);
 
         if let Some(suffix) = maybe_suffix {
-            len += suffix.to_string_lossy().grapheme_indices(true).count();
-            working_seq.push(suffix)
+            let lossy_suffix = suffix.to_string_lossy();
+            len += lossy_suffix.grapheme_indices(true).count();
+            formatted_content.push_str(&lossy_suffix);
         }
 
-        working_seq.push("\x1B[0;00m");
+        let mut styled_content =
+            formatted_content.truecolor(color.red as u8, color.green as u8, color.blue as u8);
 
-        (working_seq, len)
+        for code in codes {
+            styled_content = match code {
+                0 => styled_content,
+                1 => styled_content.bold(),
+                2 => styled_content.dimmed(),
+                3 => styled_content.italic(),
+                4 => styled_content.underline(),
+                5 => styled_content.blink(),
+                6 => styled_content.blink(),
+                7 => styled_content.reversed(),
+                8 => styled_content.hidden(),
+                9 => styled_content.strikethrough(),
+                _ => styled_content,
+            };
+        }
+
+        (OsString::from(styled_content.to_string()), len)
     }
 
     pub fn len(&self) -> usize {
