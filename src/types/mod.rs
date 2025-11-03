@@ -1,5 +1,7 @@
+mod coloured_entry;
 mod config;
-mod color_entry;
+mod rgb_color;
 
+pub use coloured_entry::*;
 pub use config::*;
-pub use color_entry::*;
+pub use rgb_color::*;
