@@ -10,15 +10,6 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::types::{SortingReference, SizeMeasurementUnit};
 
-/// TODO: Centralise everything so the err message is shown in red
-
-// Flags
-
-pub fn print_help() {
-    println!("Help");
-    process::exit(0);
-}
-
 // Kwargs
 
 fn handle_digit(mut ret: Vec<u8>, digit: u32, left: &str, chr: char) -> Vec<u8> {
@@ -173,20 +164,4 @@ pub fn default_to_curr_dir(mut paths: Vec<PathBuf>) -> Vec<PathBuf> {
         eprintln!("Couldn't find any directories and couldn't default to the current one either");
         process::exit(1);
     }
-}
-
-// Some more error messages
-pub fn unrecognized_flag(left_arg: &str) {
-    eprintln!("Unrecognized flag: {}", left_arg);
-    process::exit(1);
-}
-
-pub fn unrecognized_kwarg(left_arg: &str) {
-    eprintln!(r#"Unrecognized keyword argument: "{}"."#, left_arg);
-    process::exit(1);
-}
-
-pub fn unfilled_argument(left_arg: &str) {
-    eprintln!("Unfilled argument for: {}", left_arg);
-    process::exit(1);
 }
