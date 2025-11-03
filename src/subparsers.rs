@@ -1,9 +1,8 @@
-use std::env;
-use std::process;
-
 use std::borrow::Cow;
+use std::env;
 use std::ffi::OsString;
 use std::path::PathBuf;
+use std::process;
 
 use regex::Regex;
 use unicode_segmentation::UnicodeSegmentation;
@@ -11,13 +10,6 @@ use unicode_segmentation::UnicodeSegmentation;
 use crate::types::{SortingReference, SizeMeasurementUnit};
 
 /// TODO: Centralise everything so the err message is shown in red
-
-// Flags
-
-pub fn print_help() {
-    println!("Help");
-    process::exit(0);
-}
 
 // Kwargs
 
@@ -175,18 +167,3 @@ pub fn default_to_curr_dir(mut paths: Vec<PathBuf>) -> Vec<PathBuf> {
     }
 }
 
-// Some more error messages
-pub fn unrecognized_flag(left_arg: &str) {
-    eprintln!("Unrecognized flag: {}", left_arg);
-    process::exit(1);
-}
-
-pub fn unrecognized_kwarg(left_arg: &str) {
-    eprintln!(r#"Unrecognized keyword argument: "{}"."#, left_arg);
-    process::exit(1);
-}
-
-pub fn unfilled_argument(left_arg: &str) {
-    eprintln!("Unfilled argument for: {}", left_arg);
-    process::exit(1);
-}

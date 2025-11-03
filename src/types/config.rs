@@ -1,7 +1,5 @@
 use std::ffi::OsString;
-use std::path::PathBuf;
 use std::time::SystemTime;
-use std::env;
 
 use term_size;
 use regex::Regex;
@@ -78,9 +76,7 @@ pub struct Config {
     pub exclude_pattern: Option<Regex>,
 
     // Auto generated //
-    pub current_dir: Option<PathBuf>,
-    pub term_width: Option<usize>, 
-    pub paths: Vec<PathBuf>,
+    pub term_width: Option<usize>,
 }
 
 impl Default for Config {
@@ -131,9 +127,7 @@ impl Default for Config {
             include_pattern: None,
             exclude_pattern: None,
 
-            current_dir: env::current_dir().ok(),
             term_width: term_size::dimensions().map(|(w, _)| w),
-            paths: Vec::new(),
         }
     }
 }
